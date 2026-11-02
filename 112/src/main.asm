@@ -1,14 +1,10 @@
 ; =========================================================================
 ; PROJECT112 — ATM TURBO 2+ v7.10 VIDEO MODE TEST
 ; Target: ATM710 / UnrealSpeccy
-; Diagnostic build: Space tests the Sinclair -> ATM 640x200 transition.
-; The alias-safe trampoline marks border indices 9 then 10, emits 'R' to #EF,
-; then stops. Post-switch execution is deliberately disabled until
-; the remapped code/data layout is implemented.
-;
-; All high-resolution renderers use ATM pages 5 and 1.
-; The mode-switch trampoline is in the first 32-byte address-alias-safe
-; block at $8000. It never returns through a stack across the mode change.
+; Native ATM video test: Space cycles 640x200 -> EGA 320x200 -> 80x25.
+; The ATM page dispatcher explicitly maps RAM page 5 into $4000 and page 1
+; into $C000. Program code and stack remain in CPU window 2 ($8000-$BFFF).
+; All display renderers follow the ATM2+ memory map document in the repo.
 ; =========================================================================
 
         DEVICE ZXSPECTRUM128
@@ -359,7 +355,7 @@ ColorPlaneIndex112:    DB 0
 ColorByte112:          DB 0
 
 ; Bump this identifier whenever a test image/source revision changes.
-Debug_BuildVersion112: DEFM "P112 BUILD ATM710-HIRES-20261102.02",13,10,0
+Debug_BuildVersion112: DEFM "P112 BUILD ATM710-NATIVE-20261102.03",13,10,0
 Debug_RuntimeStart112: DEFM "PROJECT112 ATM710 START",13,10,0
 Debug_ScreenDrawn112:  DEFM "ATM SCREEN DRAWN",13,10,0
 Debug_Ready112:        DEFM "ATM VIDEO TEST READY",13,10,0
