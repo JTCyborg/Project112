@@ -34,13 +34,25 @@ Init_Z80_System112:
         LD      (Saved_SP_112),SP
         LD      SP,$BFFF
 
-        ; ATM video pages: page 5 at $4000 and page 1 at $C000.
-        ; D3=0 (3.5 MHz), D4=0 reserved, D5=0, D7=1 for ATM 7.10.
-        LD      A,$11
-        LD      BC,$7FFD
+        ; Enable ATM shadow ports and select 640x200.
+        ; A8=1 (PEN enabled), A9=0 (DOSEN/shadow ports enabled).
+        ; D6=1 disables the 8031; D7=1 is the required VE0 idle level.
+        LD      A,$C2
+        LD      BC,$FD77
         OUT     (C),A
 
-        ; BASIC selected ATM 640x200 (mode value 2) before loading this code.
+        ; Map physical video RAM pages through the ATM page dispatcher.
+        ; Page 5 -> CPU window $4000-$7FFF; page 1 -> $C000-$FFFF.
+        ; D0-D5 are inverted page number, D6=1 selects RAM, D7=0
+        ; disables 7FFD mixing for these two fixed video windows.
+        LD      A,$7A                 ; ~page 5, RAM, fixed page
+        LD      BC,$7FF7
+        OUT     (C),A
+        LD      A,$7E                 ; ~page 1, RAM, fixed page
+        LD      BC,$FFF7
+        OUT     (C),A
+
+        ; BASIC selected ATM 640x200 before loading this code.
         LD      A,1
         LD      (Current_Mode_Index),A
         ; Always identify the exact source build in the #EF runtime log.
@@ -77,9 +89,6 @@ DebugPrintDone112:
 ; Sinclair mode clears only the visible bitmap/attribute area in page 5.
 ; -------------------------------------------------------------------------
 ClearVideoMemory112:
-        LD      A,$11
-        LD      BC,$7FFD
-        OUT     (C),A
         LD      A,(Current_Mode_Index)
         OR      A
         JP      Z,ClearVideoMemory_Standard112
@@ -414,9 +423,9 @@ l20:
         DB      RANDOMIZE, USR, "15619", $0E, 0, 0
         DW      15619
         DB      0
-        ; Select ATM 640x200 BEFORE LOAD (port #FD77, value #82).
+        ; Select ATM 640x200 BEFORE LOAD (port #FD77, value #C2).
         DB      $3A, OUT_CMD, " VAL ", VAL, 34, "64887", 34
-        DB      ",VAL ", VAL, 34, "130", 34
+        DB      ",VAL ", VAL, 34, "194", 34
         DB      $3A, REM, $3A
         DB      "LOAD ", 34, "proj112", 34, " CODE 32768", $0D
 l20_len EQU     $-l20
