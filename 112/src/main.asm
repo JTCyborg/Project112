@@ -491,7 +491,7 @@ ColorOffsetReady112:
         INC     A
         LD      (ColorPlaneIndex112),A
         CP      4
-        JR      NZ,ColorPairLoop112
+        JP      NZ,ColorPairLoop112
         POP     HL
         JR      PrintGlyphLineStored112
 
