@@ -791,52 +791,55 @@
  42+  8435 18 06                JR      ModePageReady112
  43+  8437
  44+  8437              .init_16color_pages:
- 45+  8437                      ; Для 16-цветового режима временно даём доступ к RAM 7 ($17),
- 46+  8437                      ; чтобы ClearVideoMemory зачистил верхние аппаратные плоскости
- 47+  8437 3E 17                LD      A,$17
- 48+  8439 18 02                JR      ModePageReady112
- 49+  843B
- 50+  843B              .init_384_pages:
- 51+  843B                      ; Pentagon 384x304 uses RAM page 4 at $C000 and fixed page 5 at $4000.
- 52+  843B 3E 04                LD      A,$04
- 53+  843D
- 54+  843D              ModePageReady112:
- 55+  843D 01 FD 7F             LD      BC,$7FFD
- 56+  8440 ED 79                OUT     (C),A
- 57+  8442
- 58+  8442                      ; 3. Установка цвета бордюра через порт $FE
- 59+  8442 3A 9C 84             LD      A,(Current_Mode_Index)
- 60+  8445 6F                   LD      L,A
- 61+  8446 26 00                LD      H,0
- 62+  8448 11 69 84             LD      DE,Mode_Border_Colors
- 63+  844B 19                   ADD     HL,DE
- 64+  844C 7E                   LD      A,(HL)
- 65+  844D D3 FE                OUT     ($FE),A
- 66+  844F C9                   RET
- 67+  8450
- 68+  8450
- 69+  8450              ; Mode-control constants and lookup tables.
- 70+  8450              Mode_Count             EQU 5
- 71+  8450 00           Current_Mode_Byte:     DB 0
- 72+  8451 56 49 44 45  Debug_ModeApply112:    DEFM "VIDEO MODE APPLY",13,10,0
- 72+  8455 4F 20 4D 4F
- 72+  8459 44 45 20 41
- 72+  845D 50 50 4C 59
- 72+  8461 0D 0A 00
- 73+  8464
- 74+  8464              ; UnrealSpeccy / Pentagon 1024 mode bits:
- 75+  8464              ; D0=16-color, D1=512x192, D5=hardware multicolor, D6=384x304.
- 76+  8464              Mode_Hardware_Bytes:
- 77+  8464 00                   DB      $00                     ; Mode 0: Standard 256x192
- 78+  8465 02                   DB      $02                     ; Mode 1: 512x192
- 79+  8466 20                   DB      $20                     ; Mode 2: Hardware Multicolor
- 80+  8467 01                   DB      $01                     ; Mode 3: Pentagon 16-Color
- 81+  8468 40                   DB      $40                     ; Mode 4: Pentagon 384x304
- 82+  8469
- 83+  8469              Mode_Border_Colors:
- 84+  8469 01 02 04 05          DB      1,2,4,5,6
- 84+  846D 06
- 85+  846E
+ 45+  8437                      ; 16-color: page 5 остаётся в $4000 (bit 3 = 0),
+ 46+  8437                      ; page 4 отображается в $C000. Так CPU-адреса плоскостей
+ 47+  8437                      ; C000/4000/E000/6000 совпадают с физической раскладкой
+ 48+  8437                      ; UnrealSpeccy p4bpp: temp.base = page 5, смещения
+ 49+  8437                      ; -$4000 / 0 / -$2000 / +$2000 соответственно.
+ 50+  8437 3E 04                LD      A,$04
+ 51+  8439 18 02                JR      ModePageReady112
+ 52+  843B
+ 53+  843B              .init_384_pages:
+ 54+  843B                      ; Pentagon 384x304 uses RAM page 4 at $C000 and fixed page 5 at $4000.
+ 55+  843B 3E 04                LD      A,$04
+ 56+  843D
+ 57+  843D              ModePageReady112:
+ 58+  843D 01 FD 7F             LD      BC,$7FFD
+ 59+  8440 ED 79                OUT     (C),A
+ 60+  8442
+ 61+  8442                      ; 3. Установка цвета бордюра через порт $FE
+ 62+  8442 3A 9C 84             LD      A,(Current_Mode_Index)
+ 63+  8445 6F                   LD      L,A
+ 64+  8446 26 00                LD      H,0
+ 65+  8448 11 69 84             LD      DE,Mode_Border_Colors
+ 66+  844B 19                   ADD     HL,DE
+ 67+  844C 7E                   LD      A,(HL)
+ 68+  844D D3 FE                OUT     ($FE),A
+ 69+  844F C9                   RET
+ 70+  8450
+ 71+  8450
+ 72+  8450              ; Mode-control constants and lookup tables.
+ 73+  8450              Mode_Count             EQU 5
+ 74+  8450 00           Current_Mode_Byte:     DB 0
+ 75+  8451 56 49 44 45  Debug_ModeApply112:    DEFM "VIDEO MODE APPLY",13,10,0
+ 75+  8455 4F 20 4D 4F
+ 75+  8459 44 45 20 41
+ 75+  845D 50 50 4C 59
+ 75+  8461 0D 0A 00
+ 76+  8464
+ 77+  8464              ; UnrealSpeccy / Pentagon 1024 mode bits:
+ 78+  8464              ; D0=16-color, D1=512x192, D5=hardware multicolor, D6=384x304.
+ 79+  8464              Mode_Hardware_Bytes:
+ 80+  8464 00                   DB      $00                     ; Mode 0: Standard 256x192
+ 81+  8465 02                   DB      $02                     ; Mode 1: 512x192
+ 82+  8466 20                   DB      $20                     ; Mode 2: Hardware Multicolor
+ 83+  8467 01                   DB      $01                     ; Mode 3: Pentagon 16-Color
+ 84+  8468 40                   DB      $40                     ; Mode 4: Pentagon 384x304
+ 85+  8469
+ 86+  8469              Mode_Border_Colors:
+ 87+  8469 01 02 04 05          DB      1,2,4,5,6
+ 87+  846D 06
+ 88+  846E
 # file closed: video_mode_control.asm
 312   846E                      INCLUDE "src/keyboard.asm"
 # file opened: keyboard.asm

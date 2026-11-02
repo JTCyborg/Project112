@@ -42,9 +42,12 @@ ApplyVideoMode:
         JR      ModePageReady112
 
 .init_16color_pages:
-        ; Для 16-цветового режима временно даём доступ к RAM 7 ($17), 
-        ; чтобы ClearVideoMemory зачистил верхние аппаратные плоскости
-        LD      A,$17
+        ; 16-color: page 5 остаётся в $4000 (bit 3 = 0),
+        ; page 4 отображается в $C000. Так CPU-адреса плоскостей
+        ; C000/4000/E000/6000 совпадают с физической раскладкой
+        ; UnrealSpeccy p4bpp: temp.base = page 5, смещения
+        ; -$4000 / 0 / -$2000 / +$2000 соответственно.
+        LD      A,$04
         JR      ModePageReady112
 
 .init_384_pages:
