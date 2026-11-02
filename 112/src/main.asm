@@ -26,20 +26,21 @@ Project112Entry:
         JP      Init_Z80_System112
 
 ATM_ModeSwitch112:
-        ; A9=0 is DOSEN enabled. #FD77 is required when the program
-        ; executes from the TR-DOS-loaded RAM image.
+        ; Preserve the requested video mode across the pre-switch marker.
+        ; OUT ($FE),A changes the border before ATM address swapping begins.
+        LD      D,A
+        LD      A,1
+        OUT     ($FE),A
+        LD      A,D
         LD      BC,$FD77
         OUT     (C),A
         JP      ATM_ModeReentry112
 
 ATM_ModeReentry112:
-        ; Keep every instruction after #FD77 inside the 32-byte
-        ; address-alias-safe block. Do not read variables or CALL code
-        ; outside this block until the remapped execution path is known.
-        LD      SP,$BFFF
-        ; A still contains the video-mode value written to #FD77.
-        ; Its low three bits give a visible border marker (mode 2 -> 2).
-        AND     7
+        ; The post-switch marker is deliberately inside the same
+        ; 32-byte alias-safe region. Border 2 and 'R' prove execution
+        ; continued after the ATM memory address-line swap.
+        LD      A,2
         OUT     ($FE),A
         LD      A,'R'
         OUT     (#EF),A
