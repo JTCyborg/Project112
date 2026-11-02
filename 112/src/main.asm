@@ -66,10 +66,10 @@ Init_Z80_System112:
         ; BASIC selected ATM 640x200 before loading this code.
         LD      A,1
         LD      (Current_Mode_Index),A
-        ; Render the actual character-grid test immediately after mapping VRAM.
-        ; The raw fill pattern is kept as a callable diagnostic, but must not
-        ; replace the normal startup renderer.
-        CALL    DrawDemoScreen
+        ; Stage 1 diagnostic: bypass fonts and glyph rendering completely.
+        ; A deterministic alternating-column pattern verifies the four ATM
+        ; video-memory regions and the physical page mapping independently.
+        CALL    ATM640_MemoryPattern112
         LD      HL,Debug_Ready112
         CALL    DebugPrintString112
         JP      MainLoop112
