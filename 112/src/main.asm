@@ -63,6 +63,9 @@ Init_Z80_System112:
 
         XOR     A
         LD      (Current_Mode_Index),A
+        ; Always identify the exact source build in the #EF runtime log.
+        LD      HL,Debug_BuildVersion112
+        CALL    DebugPrintString112
         LD      HL,Debug_RuntimeStart112
         CALL    DebugPrintString112
         JP      ApplyVideoMode
@@ -375,6 +378,8 @@ ColorShiftByte112:     DB 0
 ColorPlaneIndex112:    DB 0
 ColorByte112:          DB 0
 
+; Bump this identifier whenever a test image/source revision changes.
+Debug_BuildVersion112: DEFM "P112 BUILD ATM710-DIAG-20261102.01",13,10,0
 Debug_RuntimeStart112: DEFM "PROJECT112 ATM710 START",13,10,0
 Debug_ScreenDrawn112:  DEFM "ATM SCREEN DRAWN",13,10,0
 Debug_Ready112:        DEFM "ATM VIDEO TEST READY",13,10,0
