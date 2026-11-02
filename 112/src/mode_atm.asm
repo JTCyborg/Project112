@@ -96,12 +96,17 @@ ATM_EGAPairLoop112:
         JR      NZ,ATM_EGAPairLoop112
         RET
 
-; ATM 80x25 hardware text: character codes in page5, attributes in page1.
+; ATM 80x25 hardware text.
+; The ATM character generator fetches codes from page 5 at offset
+; $01C0 + row*64 + column/2. Even and odd columns are split between
+; the two 8K halves. Attribute halves are crossed: even attributes are
+; in page 1 second half, odd attributes in page 1 first half.
 RenderChar_ATMText112:
         CALL    ATM_CalcTextOffset112
         LD      A,(Temp_X112)
         AND     1
         LD      (ATM_Parity112),A
+
         LD      HL,(ATM_Offset112)
         LD      DE,$4000
         LD      A,(ATM_Parity112)
@@ -112,12 +117,13 @@ ATMTextCharBaseReady112:
         ADD     HL,DE
         LD      A,(Temp_Character112)
         LD      (HL),A
+
         LD      HL,(ATM_Offset112)
-        LD      DE,$C000
+        LD      DE,$E000
         LD      A,(ATM_Parity112)
         OR      A
         JR      Z,ATMTextAttrBaseReady112
-        LD      DE,$E000
+        LD      DE,$C000
 ATMTextAttrBaseReady112:
         ADD     HL,DE
         LD      A,$47
@@ -136,11 +142,26 @@ ATM_CalcPixelOffset112:
         CALL    ATM_CalcYTimes40Only112
         JR      ATM_AddHalfColumn112
 
-; Text offset: character_row*40 + col/2.
+; Text offset: $01C0 + character_row*64 + col/2.
 ATM_CalcTextOffset112:
         LD      A,(Temp_Y112)
-        CALL    ATM_CalcYTimes40Only112
-        JR      ATM_AddHalfColumn112
+        LD      L,A
+        LD      H,0
+        ADD     HL,HL
+        ADD     HL,HL
+        ADD     HL,HL
+        ADD     HL,HL
+        ADD     HL,HL
+        ADD     HL,HL
+        LD      DE,$01C0
+        ADD     HL,DE
+        LD      A,(Temp_X112)
+        SRL     A
+        LD      E,A
+        LD      D,0
+        ADD     HL,DE
+        LD      (ATM_Offset112),HL
+        RET
 
 ; EGA has one byte per character column in each layer: row*40 + col.
 ATM_CalcEGARowOffset112:
