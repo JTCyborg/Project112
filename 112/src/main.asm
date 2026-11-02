@@ -414,8 +414,8 @@ l20:
         DB      RANDOMIZE, USR, "15619", $0E, 0, 0
         DW      15619
         DB      0
-        ; Select ATM 640x200 BEFORE LOAD (port #FD77, value #82).
-        DB      $3A, OUT_CMD, " VAL ", VAL, 34, "64887", 34
+        ; Select ATM 640x200 BEFORE LOAD (port #FC77, value #82).
+        DB      $3A, OUT_CMD, " VAL ", VAL, 34, "64631", 34
         DB      ",VAL ", VAL, 34, "130", 34
         DB      $3A, REM, $3A
         DB      "LOAD ", 34, "proj112", 34, " CODE 32768", $0D
