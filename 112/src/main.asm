@@ -34,18 +34,18 @@ ATM_ModeSwitch112:
         JP      ATM_ModeReentry112
 
 ATM_ModeReentry112:
+        ; Keep every instruction after #FD77 inside the 32-byte
+        ; address-alias-safe block. Do not read variables or CALL code
+        ; outside this block until the remapped execution path is known.
         LD      SP,$BFFF
-        ; This byte is emitted only if execution survives the #FD77 write.
         LD      A,'R'
         OUT     (#EF),A
-        ; Visible proof of each transition: border colors 1,2,3,4.
-        LD      A,(Current_Mode_Index)
-        INC     A
+        ; A still contains the video-mode value written to #FD77.
+        ; Its low three bits give a visible border marker (mode 2 -> 2).
+        AND     7
         OUT     ($FE),A
-        CALL    DrawDemoScreen
-        LD      HL,Debug_Ready112
-        CALL    DebugPrintString112
-        JP      MainLoop112
+ATM_ModeTransitionHalt112:
+        JR      ATM_ModeTransitionHalt112
 
 ; -------------------------------------------------------------------------
 ; Initial setup.
@@ -59,23 +59,6 @@ Init_Z80_System112:
         ; D3=0 (3.5 MHz), D4=0 reserved, D5=0, D7=1 for ATM 7.10.
         LD      A,$11
         LD      BC,$7FFD
-        OUT     (C),A
-
-        ; ATM710 page multiplexer (selected ROM2=1 table, indices 4..7).
-        ; Configure the active CPU windows BEFORE enabling PEN in #FD77.
-        ; FFF7 data is inverted/encoded by the ATM hardware:
-        ;   $7D -> RAM page 2 (program and stack at $8000/$BFFF)
-        ;   $7A -> RAM page 5 (video window at $4000)
-        ;   $7E -> RAM page 1 (video window at $C000)
-        ; Keep bank 2 on page 2 first: this code is executing in that window.
-        LD      A,$7D
-        LD      BC,$BFF7
-        OUT     (C),A
-        LD      A,$7A
-        LD      BC,$7FF7
-        OUT     (C),A
-        LD      A,$7E
-        LD      BC,$FFF7
         OUT     (C),A
 
         XOR     A
