@@ -509,7 +509,8 @@ PrintGlyphLineStored112:
         JR      Z,Print384Attribute112
 
         ; Character attribute: bright white ink on black paper for every glyph.
-        ; Standard mode uses $5800; hardware multicolor uses its $6000 plane.
+        ; Standard mode uses the 8x8 attribute table at $5800.
+        ; A4B is handled separately as one attribute per bitmap byte at $6000.
         LD      A,(Temp_Y112)
         LD      L,A
         LD      H,0
