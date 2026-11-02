@@ -26,50 +26,33 @@ Project112Entry:
 
 
 ; -------------------------------------------------------------------------
-; Initial setup.
+; Initial setup: enter in the native Sinclair 128K memory/video layout.
+; No ATM page remapping is performed until the first Space press.
 ; -------------------------------------------------------------------------
 Init_Z80_System112:
         DI
         LD      (Saved_SP_112),SP
         LD      SP,$BFFF
 
-        ; Emit a marker before changing ATM video/address-bus mode.
         LD      HL,Debug_BuildVersion112
         CALL    DebugPrintString112
         LD      HL,Debug_RuntimeStart112
         CALL    DebugPrintString112
 
-        ; Enable ATM shadow ports and select 640x200.
-        ; A8=1 (PEN enabled), A9=0 (DOSEN/shadow ports enabled).
-        ; D6=1 disables the 8031; D7=1 is the required VE0 idle level.
-        LD      A,$C2
-        LD      BC,$FD77
-        OUT     (C),A
-
-        ; Select memory map 0 and visible screen page 5 (7FFD D3=0).
-        ; The ATM dispatcher entries below then define the actual RAM pages.
+        ; Keep the standard Spectrum 128K map: ROM select 0, screen page 5,
+        ; RAM page 0 in $C000. Do not touch ATM page dispatcher here.
         XOR     A
         LD      BC,$7FFD
         OUT     (C),A
 
-        ; Map physical video RAM pages through the ATM page dispatcher.
-        ; Page 5 -> CPU window $4000-$7FFF; page 1 -> $C000-$FFFF.
-        ; D0-D5 are inverted page number, D6=1 selects RAM, D7=0
-        ; disables 7FFD mixing for these two fixed video windows.
-        LD      A,$7A                 ; ~page 5, RAM, fixed page
-        LD      BC,$7FF7
-        OUT     (C),A
-        LD      A,$7E                 ; ~page 1, RAM, fixed page
-        LD      BC,$FFF7
+        ; Sinclair 256x192 = RG0:RG1:RG2 = 1:1:0 (RG=3).
+        LD      A,$C3
+        LD      BC,$FD77
         OUT     (C),A
 
-        ; BASIC selected ATM 640x200 before loading this code.
-        LD      A,1
+        XOR     A
         LD      (Current_Mode_Index),A
-        ; Stage 1 diagnostic: bypass fonts and glyph rendering completely.
-        ; A deterministic alternating-column pattern verifies the four ATM
-        ; video-memory regions and the physical page mapping independently.
-        CALL    ATM640_MemoryPattern112
+        CALL    DrawDemoScreen
         LD      HL,Debug_Ready112
         CALL    DebugPrintString112
         JP      MainLoop112
