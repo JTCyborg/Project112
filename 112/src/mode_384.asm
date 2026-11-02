@@ -278,24 +278,24 @@ Draw384CheckBottom112:
         CALL    Z,Draw384Horizontal112
 Draw384AdvanceY112:
         LD      A,(RectYLo112)
-        INC     A
-        LD      (RectYLo112),A
-        JR      NZ,Draw384CompareY112
-        LD      A,(RectYHi112)
-        INC     A
-        LD      (RectYHi112),A
-Draw384CompareY112:
-        LD      A,(RectYLo112)
         LD      C,A
         LD      A,(RectYHi112)
         LD      B,A
         LD      A,(RectBottomLo112)
         CP      C
-        JR      NZ,Draw384VerticalLoop112
+        JR      NZ,Draw384IncrementY112
         LD      A,(RectBottomHi112)
         CP      B
+        RET     Z
+Draw384IncrementY112:
+        LD      A,(RectYLo112)
+        INC     A
+        LD      (RectYLo112),A
         JR      NZ,Draw384VerticalLoop112
-        RET
+        LD      A,(RectYHi112)
+        INC     A
+        LD      (RectYHi112),A
+        JR      Draw384VerticalLoop112
 
 Draw384Horizontal112:
         LD      A,(RectLeftByte112)
