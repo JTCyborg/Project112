@@ -1,32 +1,45 @@
-# Project112
-ATM Turbo 2+ v7.10 video-mode demonstrator (migration in progress).
+# Project112 — ATM Turbo 2+ video-mode demonstrator
+
+Target: ATM Turbo 2+ v7.10 / UnrealSpeccy.
+
+## Build
+
+Run `build.bat` from the `112` directory. It assembles `src/main.asm` and creates:
+- `project112.TRD`
+- `list.txt` — SjASMPlus listing
+- `map.txt` — symbol map
+
+## Keyboard
+
+Press Space to cycle through all four ATM video modes.
+
+## Implemented video modes
+
+1. Sinclair 256x192 — standard Spectrum bitmap and attributes.
+2. ATM 640x200 — hardware multicolor; page 5 bitmap, page 1 attributes.
+3. ATM 320x200 — EGA-style 16-color graphics; four 8K layers across pages 1 and 5.
+4. ATM 80x25 — hardware text generator; character codes in page 5, attributes in page 1.
+
+The system port is addressed as full I/O address `#FF77`. Mode values are `3, 2, 0, 6`; bit 7 is set for ATM 7.10. See `112/src/video_mode_control.asm`.
+
+## Memory and mode switching
+
+The ATM hi-res modes use page 5 at `$4000` and page 1 at `$C000`. For 640x200 and 80x25, even and odd columns occupy separate 8K halves. EGA 320x200 uses the four layer bases `$C000`, `$4000`, `$E000`, `$6000`.
+
+The mode-switch trampoline is placed in the first 32-byte block at `$8000`, where A5..A7 and A8..A10 match. It jumps to a re-entry point instead of returning through a stack across the mode transition. The emulator setting `AtmMemSwap=1` is essential: it models the RAM address-line permutation performed when the D0 video-mode bit changes. A border-color marker is emitted after each successful transition.
 
 ## UnrealSpeccy configuration
 
-The repository unreal.ini is configured for ATM Turbo 2+ v7.10:
-- HIMEM=ATM710
-- RAMSize=1024
-- Preset=ATM1_2_3.5MHz
-- Border=small
-- AtmMemSwap=0
-- UsePalette=1
-- ROMSET=ATM2
+The repository `unreal.ini` selects ATM Turbo 2+ v7.10:
+- `HIMEM=ATM710`
+- `RAMSize=1024`
+- `EFF7mask=0`
+- `AtmMemSwap=1` — required to emulate the A5–A7/A8–A10 RAM address-line swap when crossing between Sinclair and ATM high-resolution modes.
+- `UsePalette=1`
+- `ROMSET=ATM2`
 
-Restart UnrealSpeccy after changing the configuration. The selected ATM BIOS file must exist in the emulator directory (ATM2=bios_1_07_13.rom in this configuration).
+The configured ATM2 BIOS file must be present in the emulator directory. The current setting is `ATM2=bios_1_07_13.rom`.
 
-## ATM Turbo 2+ video modes
+## Validation status
 
-The target hardware provides four principal display modes:
-1. Sinclair 256x192
-2. 640x200 hardware multicolor
-3. 320x200 EGA, 16 colors
-4. 80x25 hardware text
-
-The mode register values in ATM system port #77 are 3, 2, 0 and 6 respectively. See 112/src/video_mode_control.asm.
-
-**Migration status:** emulator configuration and ATM mode-code table are committed. The current main.asm and legacy mode_*.asm modules still contain Pentagon-specific memory mapping/renderers. Do not treat the program as a working ATM demo until the ATM memory mapping, pixel/attribute renderers, text-mode output, and safe mode-transition routine are completed. The exact remaining work is tracked in SCENARIO.md.
-
-## Hardware references
-
-- ATM Turbo 2+ technical description, PCB 7.00-7.10: https://zxpress.ru/ru/ezines/inferno/02/tehnicheskoe-opisanie-personalnogo-kompyutera-atm-turbo-2-struktura-pamyati-porty-vvoda-vyvoda
-- Four ATM display modes and screen-memory organization: https://zxpress.ru/en/ezines/adventurer/01/detailed-overview-of-atm-turbo-2-video-modes-four-main-screens-with-different-resolutions-and
+The source has been migrated to ATM-native memory layouts and the four ATM mode values. It has **not yet been assembled or run in UnrealSpeccy in this environment**. The first test must confirm mode transitions and visible output in all four modes. In particular, verify the ATM 80x25 character generator and EGA color-pair encoding against the emulator/real board.

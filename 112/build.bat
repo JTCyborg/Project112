@@ -1,30 +1,45 @@
 @echo off
+setlocal
+
 rem =========================================================================
-rem PERFECT COMMANDER 112 — АВТОМАТИЗИРОВАННЫЙ СБОРЩИК И КАРТОГРАФ ПАМЯТИ
-rem =========================================================================
-rem Ключи sjasmplus:
-rem   --dirbol        - строгий синтаксис (инструкции с начала строки)
-rem   --lst=list.txt  - генерация сквозного потактового листинга пассов
-rem   --sym=map.txt   - генерация точной карты адресов всех глобальных меток
+rem PROJECT112 - ATM TURBO 2+ v7.10 VIDEO MODE TEST BUILD
+rem This script always builds from its own directory, regardless of the
+rem directory from which it was launched.
 rem =========================================================================
 
-echo [BUILD] Запуск компиляции проекта Perfect Commander 112...
+cd /d "%~dp0"
+if errorlevel 1 goto :BUILD_FAILED
+
+echo [BUILD] Working directory: %CD%
+echo [BUILD] Assembling Project112 for ATM Turbo 2+ v7.10...
+
+if not exist "tools\sjasmplus.exe" (
+    echo [ERROR] tools\sjasmplus.exe was not found.
+    goto :BUILD_FAILED
+)
+
+del /q "project112.TRD" 2>nul
 tools\sjasmplus.exe --dirbol --lst=list.txt --sym=map.txt src/main.asm
 
 if errorlevel 1 goto :BUILD_FAILED
+if not exist "project112.TRD" (
+    echo [ERROR] Assembly returned success but project112.TRD was not created.
+    goto :BUILD_FAILED
+)
 
 echo.
-echo [SUCCESS] Сборка успешно завершена! (Pass 3 complete, 0 errors).
-echo [MAP] Файл карты памяти сохранен в: map.txt
-echo [LST] Файл сквозного листинга сохранен в: list.txt
-goto :END
+echo [SUCCESS] Assembly completed.
+echo [OUTPUT] %CD%\project112.TRD
+echo [MAP]    %CD%\map.txt
+echo [LIST]   %CD%\list.txt
+echo.
+pause
+exit /b 0
 
 :BUILD_FAILED
 echo.
-echo [ERROR] Крах сборки! SjASMPlus обнаружил критические ошибки.
-echo [ERROR] Изучите последние строки файла list.txt для поиска коллизий.
+echo [ERROR] Build failed. Do NOT run an older project112.TRD.
+echo [ERROR] Check the messages above and list.txt.
+echo.
 pause
 exit /b 1
-
-:END
-pause

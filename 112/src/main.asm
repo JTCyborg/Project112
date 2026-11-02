@@ -1,8 +1,14 @@
 ; =========================================================================
-; PROJECT112 — VIDEO MODE DEMONSTRATOR
-; Target: Pentagon 1024 / UnrealSpeccy
-; Space: cycle video modes.
-; Character test: full-screen grid; geometry follows selected mode.
+; PROJECT112 — ATM TURBO 2+ v7.10 VIDEO MODE TEST
+; Target: ATM710 / UnrealSpeccy
+; Diagnostic build: Space tests the Sinclair -> ATM 640x200 transition.
+; The alias-safe trampoline marks border indices 9 then 10, emits 'R' to #EF,
+; then stops. Post-switch execution is deliberately disabled until
+; the remapped code/data layout is implemented.
+;
+; All high-resolution renderers use ATM pages 5 and 1.
+; The mode-switch trampoline is in the first 32-byte address-alias-safe
+; block at $8000. It never returns through a stack across the mode change.
 ; =========================================================================
 
         DEVICE ZXSPECTRUM128
@@ -10,29 +16,71 @@
 
         ORG     $8000
 
+; -------------------------------------------------------------------------
+; ATM address-bus-safe entry/trampoline block.
+; ATM 7.10 swaps A5..A7 with A8..A10 between Sinclair and hi-res modes.
+; $8000..$801F has matching values in those bit groups.
+; Keep this block below 32 bytes and do not move it.
+; -------------------------------------------------------------------------
+Project112Entry:
+        JP      Init_Z80_System112
+
+ATM_ModeSwitch112:
+        ; Preserve the requested video mode across the pre-switch marker.
+        ; OUT ($FE),A changes the border before ATM address swapping begins.
+        LD      D,A
+        LD      A,1
+        OUT     ($FE),A
+        LD      A,D
+        LD      BC,$FD77
+        OUT     (C),A
+        JP      ATM_ModeReentry112
+
+ATM_ModeReentry112:
+        ; The post-switch marker is deliberately inside the same
+        ; 32-byte alias-safe region. Border index 10 and 'R' prove execution
+        ; continued after the ATM memory address-line swap.
+        LD      A,2
+        OUT     ($FE),A
+        LD      A,'R'
+        OUT     (#EF),A
+ATM_ModeTransitionHalt112:
+        JR      ATM_ModeTransitionHalt112
+
+; -------------------------------------------------------------------------
+; Initial setup.
+; -------------------------------------------------------------------------
 Init_Z80_System112:
         DI
         LD      (Saved_SP_112),SP
-        ; Keep the stack outside $4000-$7FFF: ClearVideoMemory112
-        ; clears the entire screen bank and must never overwrite return addresses.
         LD      SP,$BFFF
 
-        ; Map Pentagon screen page 5 at $4000-$7FFF.
-        LD      A,$10
+        ; ATM video pages: page 5 at $4000 and page 1 at $C000.
+        ; D3=0 (3.5 MHz), D4=0 reserved, D5=0, D7=1 for ATM 7.10.
+        LD      A,$11
         LD      BC,$7FFD
         OUT     (C),A
 
         XOR     A
         LD      (Current_Mode_Index),A
+        ; Always identify the exact source build in the #EF runtime log.
+        LD      HL,Debug_BuildVersion112
+        CALL    DebugPrintString112
         LD      HL,Debug_RuntimeStart112
         CALL    DebugPrintString112
-        CALL    ApplyVideoMode
-        CALL    DrawDemoScreen
-        LD      HL,Debug_Ready112
-        CALL    DebugPrintString112
-        JP      MainLoop112
+        JP      ApplyVideoMode
 
-
+; A stable trampoline jump is used instead of CALL/RET because the ATM
+; address bus changes during the write to #FF77.
+ApplyVideoMode:
+        LD      A,(Current_Mode_Index)
+        LD      L,A
+        LD      H,0
+        LD      DE,ATM_Mode_Bytes112
+        ADD     HL,DE
+        LD      A,(HL)
+        OR      $80
+        JP      ATM_ModeSwitch112
 
 ; -------------------------------------------------------------------------
 ; Debug output — UnrealSpeccy diagnostic port #EF.
@@ -54,148 +102,56 @@ DebugPrintDone112:
         RET
 
 ; -------------------------------------------------------------------------
-; MODE 384x304 MEMORY DUMP
-; Dump both physical RAM pages used by the AlCo screen:
-;   CPU $4000-$7FFF = Pentagon RAM page 5
-;   CPU $C000-$FFFF = Pentagon RAM page 4
-; 16 bytes per row, address + HEX bytes. Output goes to debug port #EF.
+; Clear active video memory. ATM hi-res modes use page 5 + page 1.
+; Sinclair mode clears only the visible bitmap/attribute area in page 5.
 ; -------------------------------------------------------------------------
-DebugDump384Memory112:
-        PUSH    AF
-        PUSH    BC
-        PUSH    DE
-        PUSH    HL
-        LD      HL,DebugDump384Begin112
-        CALL    DebugPrintString112
-        LD      HL,DebugDumpPage5Label112
-        CALL    DebugPrintString112
-        LD      HL,$4000
-        LD      D,$80
-        CALL    DebugDumpWindow112
-        LD      HL,DebugDumpPage4Label112
-        CALL    DebugPrintString112
-        LD      HL,$C000
-        LD      D,$00
-        CALL    DebugDumpWindow112
-
-        LD      HL,DebugDump384End112
-        CALL    DebugPrintString112
-        POP     HL
-        POP     DE
-        POP     BC
-        POP     AF
-        RET
-
-; HL = first address; D = high byte marking the exclusive end.
-; The second window naturally terminates when HL wraps from $FFFF to $0000.
-DebugDumpWindow112:
-DebugDumpRow112:
-        PUSH    DE
-        LD      A,H
-        CALL    DebugPrintHexByte112
-        LD      A,L
-        CALL    DebugPrintHexByte112
-        LD      A,':'
-        OUT     (#EF),A
-        LD      A,' '
-        OUT     (#EF),A
-        POP     DE
-        LD      B,16
-DebugDumpByte112:
-        LD      A,(HL)
-        CALL    DebugPrintHexByte112
-        LD      A,' '
-        OUT     (#EF),A
-        INC     HL
-        DJNZ    DebugDumpByte112
-        LD      A,13
-        OUT     (#EF),A
-        LD      A,10
-        OUT     (#EF),A
-        LD      A,H
-        CP      D
-        JR      NZ,DebugDumpRow112
-        RET
-
-; A = byte. Emits two uppercase hexadecimal digits.
-DebugPrintHexByte112:
-        PUSH    AF
-        AND     $F0
-        RRCA
-        RRCA
-        RRCA
-        RRCA
-        CALL    DebugPrintHexNibble112
-        POP     AF
-        AND     $0F
-        ; Fall through to the nibble formatter.
-DebugPrintHexNibble112:
-        ADD     A,'0'
-        CP      '9'+1
-        JR      C,DebugPrintHexOut112
-        ADD     A,'A'-'9'-1
-DebugPrintHexOut112:
-        OUT     (#EF),A
-        RET
-
-DebugDump384Begin112: DEFM 13,10,"384x304 RAM DUMP BEGIN",13,10,0
-DebugDumpPage5Label112: DEFM "PAGE5 $4000-$7FFF",13,10,0
-DebugDumpPage4Label112: DEFM "PAGE4 $C000-$FFFF",13,10,0
-DebugDump384End112:   DEFM "384x304 RAM DUMP END",13,10,0
-
-; Clear the full 16K screen window in RAM page 5. This also clears
-; the secondary $6000-$77FF plane used by 512x192 / A4B-style modes.
 ClearVideoMemory112:
-        ; Mode-specific screen-memory clearing lives in the corresponding
-        ; mode module. The common entry point only dispatches.
+        LD      A,$11
+        LD      BC,$7FFD
+        OUT     (C),A
         LD      A,(Current_Mode_Index)
-        CP      0
+        OR      A
         JP      Z,ClearVideoMemory_Standard112
-        CP      1
-        JP      Z,ClearVideoMemory_512112
-        CP      2
-        JP      Z,ClearVideoMemory_A4B112
-        CP      3
-        JP      Z,ClearVideoMemory_16Color112
-        JP      ClearVideoMemory_384112
+        JP      ClearVideoMemory_ATM112
 
+; -------------------------------------------------------------------------
+; Draw the test screen for the selected native ATM mode.
+; -------------------------------------------------------------------------
 DrawDemoScreen:
         CALL    ClearVideoMemory112
         LD      A,(Current_Mode_Index)
-        CP      4
-        JR      NZ,DrawDemoCharacterGrid112
-        CALL    Draw384RectangleTest112
-        LD      HL,Debug_ScreenDrawn112
-        CALL    DebugPrintString112
-        CALL    DebugDump384Memory112
-        RET
+        CP      3
+        JR      Z,DrawDemoCharacterGrid112
 
 DrawDemoCharacterGrid112:
-        ; Select the actual character grid for the active video mode.
+        ; Select the character grid geometry for the active ATM mode.
         LD      A,(Current_Mode_Index)
-        CP      1
-        JR      Z,GridWidth64_112
-        CP      4
-        JR      Z,GridGeometry384_112
+        OR      A
+        JR      Z,GridGeometrySinclair112
+        CP      2
+        JR      Z,GridGeometryEGA112
+        ; 640x200 graphics and 80x25 hardware text.
+        LD      A,80
+        LD      (Grid_Width112),A
+        LD      A,25
+        LD      (Grid_Height112),A
+        JR      GridGeometryReady112
+
+GridGeometrySinclair112:
         LD      A,32
         LD      (Grid_Width112),A
         LD      A,24
         LD      (Grid_Height112),A
         JR      GridGeometryReady112
-GridWidth64_112:
-        LD      A,64
-        LD      (Grid_Width112),A
-        LD      A,24
-        LD      (Grid_Height112),A
-        JR      GridGeometryReady112
-GridGeometry384_112:
-        LD      A,48
-        LD      (Grid_Width112),A
-        LD      A,38
-        LD      (Grid_Height112),A
-GridGeometryReady112:
 
-        ; Reserve row 0 for an explicit active-mode label.
+GridGeometryEGA112:
+        LD      A,40
+        LD      (Grid_Width112),A
+        LD      A,25
+        LD      (Grid_Height112),A
+
+GridGeometryReady112:
+        ; Row 0 contains the active mode name.
         LD      HL,Text_ModePrefix112
         LD      C,0
         LD      D,0
@@ -214,48 +170,49 @@ GridGeometryReady112:
         LD      D,0
         CALL    PrintString112
 
-        ; Draw the test area. Row 0 is the mode label; the last row
-        ; and last column are rulers with a zero marker every 10 cells.
+        ; Test area: character ramp, bottom ruler and right ruler.
         LD      A,32
         LD      (Demo_Character112),A
         LD      A,1
         LD      (Demo_Row112),A
+
 DemoRowLoop112:
         XOR     A
         LD      (Demo_Column112),A
+
 DemoColumnLoop112:
         LD      A,(Demo_Column112)
         LD      C,A
         LD      A,(Demo_Row112)
         LD      D,A
 
-        ; The tenth, twentieth, thirtieth... ruler positions are marked '0'.
-        ; All other horizontal ruler cells are '-', vertical cells are '|'.
         LD      A,(Demo_Row112)
         LD      B,A
         LD      A,(Grid_Height112)
         DEC     A
         CP      B
         JR      Z,DrawBottomRuler112
+
         LD      A,(Demo_Column112)
         LD      B,A
         LD      A,(Grid_Width112)
         DEC     A
         CP      B
         JR      Z,DrawRightRuler112
+
         LD      A,(Demo_Character112)
         JR      DrawGridCell112
+
 DrawBottomRuler112:
         LD      A,(Demo_Column112)
         INC     A
-        LD      B,A
-        LD      A,B
         CALL    Modulo10_112
         OR      A
         LD      A,'-'
         JR      NZ,DrawGridCell112
         LD      A,'0'
         JR      DrawGridCell112
+
 DrawRightRuler112:
         LD      A,(Demo_Row112)
         INC     A
@@ -264,12 +221,13 @@ DrawRightRuler112:
         LD      A,'|'
         JR      NZ,DrawGridCell112
         LD      A,'0'
+
 DrawGridCell112:
         CALL    PrintChar112
 
         LD      A,(Demo_Character112)
         INC     A
-        CP      128
+        CP      127
         JR      C,GridCharReady112
         LD      A,32
 GridCharReady112:
@@ -289,12 +247,10 @@ GridCharReady112:
         LD      B,A
         LD      A,(Grid_Height112)
         CP      B
-        JR      NZ,DemoRowLoop112
+        JP      NZ,DemoRowLoop112
+
         LD      HL,Debug_ScreenDrawn112
         CALL    DebugPrintString112
-        LD      A,(Current_Mode_Index)
-        CP      4
-        CALL    Z,DebugDump384Memory112
         RET
 
 ; Return A = A modulo 10. Preserves BC and DE.
@@ -310,7 +266,7 @@ Modulo10Done112:
         POP     BC
         RET
 
-; Print zero-terminated string at C=character column, D=character row.
+; Print zero-terminated string at C=column, D=row.
 PrintString112:
         LD      A,(HL)
         OR      A
@@ -322,8 +278,9 @@ PrintString112:
         INC     C
         JR      PrintString112
 
-; Draw one 8x8 glyph. A=ASCII, C=column, D=character row.
-; Mode-specific bitmap and attribute operations are delegated to mode files.
+; A=ASCII character, C=column, D=row.
+; Hardware text mode writes character codes directly to ATM character RAM.
+; Graphics modes render the supplied 8x8 glyph from Font88_112.
 PrintChar112:
         PUSH    BC
         PUSH    DE
@@ -333,6 +290,10 @@ PrintChar112:
         LD      (Temp_X112),A
         LD      A,D
         LD      (Temp_Y112),A
+
+        LD      A,(Current_Mode_Index)
+        CP      3
+        JR      Z,PrintCharATMText112
 
         LD      A,(Temp_Character112)
         CP      32
@@ -349,28 +310,23 @@ PrintChar112:
 
         XOR     A
         LD      (GlyphLine112),A
+
 GlyphLineLoop112:
         LD      HL,(FontPointer112)
         LD      A,(HL)
         LD      (Temp_FontByte112),A
         INC     HL
         LD      (FontPointer112),HL
-        ; Dispatch one scanline to the active mode's independent renderer.
+
         LD      A,(Current_Mode_Index)
-        CP      0
+        OR      A
         CALL    Z,RenderGlyph_Standard112
         LD      A,(Current_Mode_Index)
         CP      1
-        CALL    Z,RenderGlyph_512112
+        CALL    Z,RenderGlyph_ATM640112
         LD      A,(Current_Mode_Index)
         CP      2
-        CALL    Z,RenderGlyph_A4B112
-        LD      A,(Current_Mode_Index)
-        CP      3
-        CALL    Z,RenderGlyph_16Color112
-        LD      A,(Current_Mode_Index)
-        CP      4
-        CALL    Z,RenderGlyph_384112
+        CALL    Z,RenderGlyph_ATMEGA112
 
         LD      A,(GlyphLine112)
         INC     A
@@ -378,22 +334,13 @@ GlyphLineLoop112:
         CP      8
         JP      NZ,GlyphLineLoop112
 
-        ; Character-level attributes are also mode-owned.
         LD      A,(Current_Mode_Index)
-        CP      0
+        OR      A
         CALL    Z,RenderAttributes_Standard112
-        LD      A,(Current_Mode_Index)
-        CP      1
-        CALL    Z,RenderAttributes_512112
-        LD      A,(Current_Mode_Index)
-        CP      2
-        CALL    Z,RenderAttributes_A4B112
-        LD      A,(Current_Mode_Index)
-        CP      3
-        CALL    Z,RenderAttributes_16Color112
-        LD      A,(Current_Mode_Index)
-        CP      4
-        CALL    Z,RenderAttributes_384112
+        JR      PrintCharDone112
+
+PrintCharATMText112:
+        CALL    RenderChar_ATMText112
 
 PrintCharDone112:
         POP     HL
@@ -402,20 +349,15 @@ PrintCharDone112:
         RET
 
 ; -------------------------------------------------------------------------
-; Independent video-mode implementations.
-; Keep mode-specific memory maps, clearing and glyph rendering in these files.
+; Native ATM video implementations.
 ; -------------------------------------------------------------------------
         INCLUDE "src/mode_standard.asm"
-        INCLUDE "src/mode_512.asm"
-        INCLUDE "src/mode_a4b.asm"
-        INCLUDE "src/mode_16color.asm"
-        INCLUDE "src/mode_384.asm"
-        INCLUDE "src/driver_alco384.asm"
+        INCLUDE "src/mode_atm.asm"
         INCLUDE "src/video_mode_control.asm"
         INCLUDE "src/keyboard.asm"
 
 ; -------------------------------------------------------------------------
-; Data
+; Runtime data.
 ; -------------------------------------------------------------------------
 Saved_SP_112:          DW 0
 Current_Mode_Index:    DB 0
@@ -430,45 +372,40 @@ Demo_Row112:           DB 0
 Demo_Column112:        DB 0
 Grid_Width112:         DB 32
 Grid_Height112:        DB 24
-ColorOffset112:        DW 0
-ColorShiftByte112:    DB 0
-ColorPlaneIndex112:   DB 0
-ColorByte112:         DB 0
-RectLeftByte112:      DB 0
-RectRightByte112:     DB 0
-RectTopLo112:         DB 0
-RectTopHi112:         DB 0
-RectBottomLo112:      DB 0
-RectBottomHi112:      DB 0
-RectYLo112:           DB 0
-RectYHi112:           DB 0
-RectXByte112:         DB 0
+ATM_Offset112:         DW 0
+ATM_Parity112:         DB 0
+ColorShiftByte112:     DB 0
+ColorPlaneIndex112:    DB 0
+ColorByte112:          DB 0
 
-Debug_RuntimeStart112: DEFM "P112 RUNNING",13,10,0
-Debug_ScreenDrawn112:  DEFM "SCREEN DRAWN",13,10,0
-Debug_Ready112:        DEFM "VIDEO TEST READY",13,10,0
+; Bump this identifier whenever a test image/source revision changes.
+Debug_BuildVersion112: DEFM "P112 BUILD ATM710-DIAG-20261102.01",13,10,0
+Debug_RuntimeStart112: DEFM "PROJECT112 ATM710 START",13,10,0
+Debug_ScreenDrawn112:  DEFM "ATM SCREEN DRAWN",13,10,0
+Debug_Ready112:        DEFM "ATM VIDEO TEST READY",13,10,0
+Debug_SpacePressed112: DEFM "SPACE: NEXT ATM MODE",13,10,0
 
-Text_ModePrefix112:   DEFM "MODE: ",0
+Text_ModePrefix112:    DEFM "MODE: ",0
 
 Mode_Name_Pointers:
-        DW ModeName_Standard112
-        DW ModeName_512112
-        DW ModeName_HardwareMC112
-        DW ModeName_16Color112
-        DW ModeName_384112
+        DW ModeName_Sinclair112
+        DW ModeName_ATM640112
+        DW ModeName_ATMEGA112
+        DW ModeName_ATMText112
 
-ModeName_Standard112:  DEFM "STANDARD 256x192",0
-ModeName_512112:       DEFM "512x192",0
-ModeName_HardwareMC112:DEFM "A4B MULTICOLOR",0
-ModeName_16Color112:   DEFM "16-COLOR 2PX/BYTE",0
-ModeName_384112:       DEFM "PENTAGON 384x304",0
+ModeName_Sinclair112:  DEFM "SINCLAIR 256x192",0
+ModeName_ATM640112:   DEFM "ATM 640x200 MULTICOLOR",0
+ModeName_ATMEGA112:   DEFM "ATM EGA 320x200x16",0
+ModeName_ATMText112:  DEFM "ATM TEXT 80x25",0
 
-
-; Index is the two adjacent glyph pixels: left in bit 1, right in bit 0.
-; White=15, black=0, encoded with Pentagon 16-color component wiring.
-ColorPairValues112:
+; EGA byte encoding for two adjacent pixels: left pixel in D0,D1,D2,D6;
+; right pixel in D3,D4,D5,D7. Black=0, white=15.
+ATM_ColorPairValues112:
         DB      $00,$B8,$47,$FF
-ColorPlaneBases112:
+
+; ATM EGA layers: page 1 first half, page 5 first half,
+; page 1 second half, page 5 second half.
+ATM_EGA_PlaneBases112:
         DW      $C000,$4000,$E000,$6000
 
         ALIGN   256
@@ -477,7 +414,6 @@ Font88_112:
 
 ProgramEnd112:
 
-; =========================================================================
 ; =========================================================================
 ; TR-DOS BASIC loader
 ; =========================================================================
@@ -489,8 +425,8 @@ REM         EQU $EA
 RANDOMIZE   EQU $F9
 USR         EQU $C0
 OUT_CMD     EQU $DF
-
 VAL         EQU $B0
+
 basic_loader:
         DB      0,10
         DW      l10_len

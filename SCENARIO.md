@@ -544,3 +544,91 @@
 **Источники аппаратной спецификации:**
 - https://zxpress.ru/ru/ezines/inferno/02/tehnicheskoe-opisanie-personalnogo-kompyutera-atm-turbo-2-struktura-pamyati-porty-vvoda-vvoda
 - https://zxpress.ru/en/ezines/adventurer/01/detailed-overview-of-atm-turbo-2-video-modes-four-main-screens-with-different-resolutions-and
+
+
+---
+
+## ATM Turbo 2+ migration — 2026-11-02
+
+### Implemented in branch `atm-native-video`
+
+- [x] Removed the Pentagon 512x192, A4B, Pentagon 16-color and 384x304 renderer dispatch from the active `main.asm`.
+- [x] Defined exactly four native ATM modes: Sinclair 256x192, 640x200 hardware multicolor, EGA 320x200x16 and hardware text 80x25.
+- [x] Corrected the mode sequence to system-port values 3, 2, 0 and 6.
+- [x] Added ATM 640x200 bitmap/attribute addressing: page 5/page 1, 40 bytes per scanline, even/odd columns in separate 8K halves.
+- [x] Added ATM EGA 320x200x16 four-layer addressing with bases $C000, $4000, $E000 and $6000.
+- [x] Added 80x25 hardware text output using character codes in page 5 and attributes in page 1.
+- [x] Kept Sinclair 256x192 as the first control mode and adapted its page mapping to the ATM page pair.
+- [x] Added the fixed mode-switch trampoline at $8003 inside the address-alias-safe first 32-byte block. The trampoline jumps to a re-entry point; it does not RET across the mode change.
+- [x] Keyboard Space now advances through the four ATM modes and waits for release.
+- [x] Updated README to describe the native ATM implementation and its validation status.
+
+### Still required — do not mark complete until tested
+
+- [ ] Run `build.bat` with the bundled SjASMPlus 1.23.1; resolve any assembler errors.
+- [ ] Run `project112.TRD` in UnrealSpeccy with `HIMEM=ATM710`.
+- [ ] Confirm Sinclair → 640x200 → EGA 320x200 → 80x25 → Sinclair transitions.
+- [ ] Confirm visible glyphs and ruler geometry in all modes.
+- [ ] Verify EGA pair-bit encoding and 640x200 attribute polarity against the emulator/real ATM 7.10 board.
+- [ ] Verify the hardware text generator's character-code mapping and attribute format.
+- [ ] Check that no mode transition hangs due to the A5–A7/A8–A10 alias restriction.
+
+**Current status:** source migration is committed to `atm-native-video`. Compilation and runtime validation have not been performed here; the branch is a test candidate, not a verified release.
+
+
+### Исправление чёрного экрана при переходе Sinclair → ATM (2026-11-02)
+
+По исходнику UnrealSpeccy `atm.cpp` установлено:
+
+- При изменении D0 регистра #FF77 эмулятор вызывает `atm_memswap()`, только если включён параметр `AtmMemSwap`.
+- `atm_memswap()` переставляет биты адреса A5–A7 и A8–A10 в содержимом каждой 2-КБ области RAM. Это моделирует аппаратную перестановку адресных линий ATM.
+- При `AtmMemSwap=0` эта операция полностью отключена. При переключении режима 3 → 2 процессор может потерять прежнее содержимое кода/данных по логическим адресам.
+- [x] В `unreal.ini` установлено `AtmMemSwap=1`.
+- [x] После записи в системный порт добавлен видимый диагностический маркер бордюра: цвет зависит от индекса режима.
+- [x] Адрес системного порта в переходной процедуре установлен в `#FD77` (A9=0, DOSEN разрешён); запись выполняется из загруженной TR-DOS программы.
+- [ ] Перезапустить UnrealSpeccy, чтобы он перечитал `unreal.ini`.
+- [ ] Проверить, что после пробела меняется цвет бордюра. Это отдельно подтвердит, что выполнение дошло до кода после записи #FF77.
+- [ ] Проверить изображение во всех четырёх режимах. Если бордюр меняется, но графика пуста, отдельно исправлять адреса экранной памяти по видеоконтроллеру ATM.
+- [ ] Сборка SjASMPlus и runtime-проверка ещё не выполнены.
+
+**Важно:** это исправление устраняет подтверждённое несоответствие конфигурации эмулятора, но не является подтверждением правильности всех четырёх рендереров. Ранее добавленные адресные схемы должны пройти отдельную проверку на реальном изображении.
+
+
+
+### Диагностика перехода Sinclair → ATM: выполнение после #FD77 (2026-11-02)
+
+Пользователь подтвердил: нажатие Space регистрируется в логе, но после перехода с Sinclair на ATM 640x200 изображение не меняется и цвет бордюра не виден.
+
+Повторная проверка машинного кода выявила ошибку в диагностике предыдущей версии:
+
+- [x] После записи #FD77 код читал `Current_Mode_Index` из обычной переменной за пределами 32-байтного alias-safe участка.
+- [x] При переключении Sinclair ↔ ATM меняются адресные линии A5–A7/A8–A10; обращаться к переменным и вызывать обычный код до проверки нового адресного отображения нельзя.
+- [x] Переходный участок сокращён: сразу после OUT (#FD77),A он использует сохранённое в A значение видеорежима, формирует цвет бордюра через `AND 7`, записывает его в #FE, выводит символ `R` в диагностический порт #EF и останавливается в коротком цикле.
+- [x] Все инструкции от записи #FD77 до диагностической остановки находятся в alias-safe блоке по адресу $8000..$801F.
+- [x] Удалена неподтверждённая предварительная запись в #FFF7: она не должна добавляться без проверки текущего состояния диспетчера страниц.
+- [ ] Собрать ветку `atm-native-video` через `112/build.bat`.
+- [ ] Полностью перезапустить UnrealSpeccy с `AtmMemSwap=1`.
+- [ ] Запустить TRD и нажать Space один раз.
+- [ ] Проверить, появился ли символ `R` в логе #EF и изменился ли бордюр на цвет 2.
+- [ ] Если `R` и цвет 2 появились, считать доказанным только прохождение переходного участка. Отрисовка и продолжение работы после переключения пока намеренно остановлены; следующий этап — корректно организовать пост-переходный код с учётом перестановки адресных линий.
+- [ ] Если `R` отсутствует и бордюр не меняется, исследовать доступ к #FD77 и фактическую карту FFF7 до изменения рендереров.
+
+**Статус:** диагностический код опубликован в `atm-native-video`; сборка и выполнение не подтверждены. Это не финальная версия эмулятора и не рабочий цикл четырёх видеорежимов.
+
+
+### Повторная диагностика: раздельные маркеры до и после #FD77 (2026-11-02)
+
+Пользователь подтвердил: после Space первый Sinclair-экран исчезает, но бордюр не показывает ожидаемый цвет. Предыдущий тест имел только маркер ПОСЛЕ записи #FD77, поэтому не доказывал, что программа дошла до самого переключателя; кроме того, сборочный BAT зависел от текущего каталога Windows и мог оставить старый TRD при запуске не из каталога 112.
+
+- [x] Добавлен бордюрный маркер 1 непосредственно ДО записи #FD77.
+- [x] Добавлен бордюрный маркер 2 и символ `R` в #EF ПОСЛЕ записи #FD77.
+- [x] Весь переходный код от $8003 до диагностической остановки помещается в блок $8000..$801F.
+- [x] `112/build.bat` теперь сам переходит в свой каталог, удаляет прежний `project112.TRD` и проверяет, что новая сборка действительно создала TRD.
+- [ ] Запустить `112/build.bat` и убедиться в сообщении `[SUCCESS]` и актуальном пути `112\\project112.TRD`.
+- [ ] Запустить именно этот свежесобранный TRD в полностью перезапущенном UnrealSpeccy.
+- [ ] Нажать Space один раз и записать, какой бордюр виден: исходный, маркер 1 или маркер 2; отдельно проверить наличие символа `R` в логе.
+- [ ] Если маркер 1 не появляется, проблема до записи #FD77 (путь вызова/код/сборка).
+- [ ] Если маркер 1 появляется, но маркер 2 нет, CPU не продолжает выполнение после записи #FD77: исследовать переключение ATM RAM/FFF7 и адресное отображение.
+- [ ] Если маркер 2 и `R` появляются, переключение прошло; чёрный экран ожидаем в этом диагностическом варианте, поскольку после проверки код намеренно останавливается.
+
+**Статус:** диагностическая версия закоммичена; компиляция и запуск не выполнялись в этой среде. Не считать это исправлением видеорежимов.
