@@ -67,11 +67,13 @@ DebugDump384Memory112:
         PUSH    HL
         LD      HL,DebugDump384Begin112
         CALL    DebugPrintString112
-
+        LD      HL,DebugDumpPage5Label112
+        CALL    DebugPrintString112
         LD      HL,$4000
         LD      D,$80
         CALL    DebugDumpWindow112
-
+        LD      HL,DebugDumpPage4Label112
+        CALL    DebugPrintString112
         LD      HL,$C000
         LD      D,$00
         CALL    DebugDumpWindow112
@@ -136,8 +138,10 @@ DebugPrintHexOut112:
         OUT     (#EF),A
         RET
 
-DebugDump384Begin112: DEFM 13,10,"384x304 RAM DUMP BEGIN",13,10,"PAGE5 $4000-$7FFF",13,10,0
-DebugDump384End112:   DEFM "PAGE4 $C000-$FFFF",13,10,"384x304 RAM DUMP END",13,10,0
+DebugDump384Begin112: DEFM 13,10,"384x304 RAM DUMP BEGIN",13,10,0
+DebugDumpPage5Label112: DEFM "PAGE5 $4000-$7FFF",13,10,0
+DebugDumpPage4Label112: DEFM "PAGE4 $C000-$FFFF",13,10,0
+DebugDump384End112:   DEFM "384x304 RAM DUMP END",13,10,0
 
 ; Clear the full 16K screen window in RAM page 5. This also clears
 ; the secondary $6000-$77FF plane used by 512x192 / A4B-style modes.
@@ -157,7 +161,16 @@ ClearVideoMemory112:
 
 DrawDemoScreen:
         CALL    ClearVideoMemory112
+        LD      A,(Current_Mode_Index)
+        CP      4
+        JR      NZ,DrawDemoCharacterGrid112
+        CALL    Draw384RectangleTest112
+        LD      HL,Debug_ScreenDrawn112
+        CALL    DebugPrintString112
+        CALL    DebugDump384Memory112
+        RET
 
+DrawDemoCharacterGrid112:
         ; Select the actual character grid for the active video mode.
         LD      A,(Current_Mode_Index)
         CP      1
@@ -420,6 +433,15 @@ ColorOffset112:        DW 0
 ColorShiftByte112:    DB 0
 ColorPlaneIndex112:   DB 0
 ColorByte112:         DB 0
+RectLeftByte112:      DB 0
+RectRightByte112:     DB 0
+RectTopLo112:         DB 0
+RectTopHi112:         DB 0
+RectBottomLo112:      DB 0
+RectBottomHi112:      DB 0
+RectYLo112:           DB 0
+RectYHi112:           DB 0
+RectXByte112:         DB 0
 
 Debug_RuntimeStart112: DEFM "P112 RUNNING",13,10,0
 Debug_ScreenDrawn112:  DEFM "SCREEN DRAWN",13,10,0
