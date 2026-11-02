@@ -19,6 +19,9 @@
 ; Keep this block below 32 bytes and do not move it.
 ; -------------------------------------------------------------------------
 Project112Entry:
+        ; First instruction-level proof that BASIC actually entered $8000.
+        LD      A,'Z'
+        OUT     (#EF),A
         JP      Init_Z80_System112
 
 
@@ -29,6 +32,12 @@ Init_Z80_System112:
         DI
         LD      (Saved_SP_112),SP
         LD      SP,$BFFF
+
+        ; Emit a marker before changing ATM video/address-bus mode.
+        LD      HL,Debug_BuildVersion112
+        CALL    DebugPrintString112
+        LD      HL,Debug_RuntimeStart112
+        CALL    DebugPrintString112
 
         ; Enable ATM shadow ports and select 640x200.
         ; A8=1 (PEN enabled), A9=0 (DOSEN/shadow ports enabled).
@@ -57,15 +66,47 @@ Init_Z80_System112:
         ; BASIC selected ATM 640x200 before loading this code.
         LD      A,1
         LD      (Current_Mode_Index),A
-        ; Always identify the exact source build in the #EF runtime log.
-        LD      HL,Debug_BuildVersion112
-        CALL    DebugPrintString112
-        LD      HL,Debug_RuntimeStart112
-        CALL    DebugPrintString112
-        CALL    DrawDemoScreen
+        CALL    ATM640_MemoryPattern112
         LD      HL,Debug_Ready112
         CALL    DebugPrintString112
         JP      MainLoop112
+
+
+; -------------------------------------------------------------------------
+; ATM 640x200 raw memory diagnostic.
+; Writes deterministic full-screen patterns without font, glyph renderer,
+; per-character offsets or EGA conversion:
+;   page 5 even cells ($4000): $FF
+;   page 5 odd  cells ($6000): $00
+;   page 1 even attributes ($C000): $47
+;   page 1 odd  attributes ($E000): $47
+; Each plane is 8000 bytes (200 scanlines * 40 bytes).
+; -------------------------------------------------------------------------
+ATM640_MemoryPattern112:
+        LD      HL,$4000
+        LD      A,$FF
+        CALL    ATM640_FillPlane112
+        LD      HL,$6000
+        XOR     A
+        CALL    ATM640_FillPlane112
+        LD      HL,$C000
+        LD      A,$47
+        CALL    ATM640_FillPlane112
+        LD      HL,$E000
+        LD      A,$47
+        CALL    ATM640_FillPlane112
+        LD      HL,Debug_RawPattern112
+        JP      DebugPrintString112
+
+; HL=destination, A=fill byte. Fills exactly 8000 bytes.
+ATM640_FillPlane112:
+        LD      (HL),A
+        PUSH    HL
+        POP     DE
+        INC     DE
+        LD      BC,7999
+        LDIR
+        RET
 
 ; -------------------------------------------------------------------------
 ; Debug output — UnrealSpeccy diagnostic port #EF.
@@ -361,10 +402,11 @@ ColorPlaneIndex112:    DB 0
 ColorByte112:          DB 0
 
 ; Bump this identifier whenever a test image/source revision changes.
-Debug_BuildVersion112: DEFM "P112 BUILD ATM710-NATIVE-20261102.03",13,10,0
+Debug_BuildVersion112: DEFM "P112 BUILD ATM710-ENTRY-20261103.01",13,10,0
 Debug_RuntimeStart112: DEFM "PROJECT112 ATM710 START",13,10,0
 Debug_ScreenDrawn112:  DEFM "ATM SCREEN DRAWN",13,10,0
 Debug_Ready112:        DEFM "ATM VIDEO TEST READY",13,10,0
+Debug_RawPattern112:    DEFM "ATM640 RAW MEMORY PATTERN",13,10,0
 Debug_SpacePressed112: DEFM "SPACE: NEXT ATM MODE",13,10,0
 Debug_ModeApplied112:  DEFM "ATM MODE APPLIED",13,10,0
 
@@ -411,35 +453,79 @@ OUT_CMD     EQU $DF
 VAL         EQU $B0
 
 basic_loader:
+        ; Line 10: OUT 239,1: CLEAR 32767
         DB      0,10
         DW      l10_len
 l10:
-        DB      CLEAR, "32767", $0E, 0, 0
-        DW      32767
-        DB      0, $0D
+        DB      OUT_CMD
+        DB      "239", $0E, $00, $00, $EF, $00, $00
+        DB      ","
+        DB      "1", $0E, $00, $00, $01, $00, $00
+        DB      ":"
+        DB      CLEAR, "32767", $0E, $00, $00, $7F, $FF, $00
+        DB      $0D
 l10_len EQU     $-l10
 
+        ; Line 11: print P112 START to diagnostic port #EF.
+        DB      0,11
+        DW      l11_len
+l11:
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "80", 34, ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "49", 34, ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "49", 34, ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "50", 34, ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "32", 34, ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "83", 34, ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "84", 34, ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "65", 34, ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "82", 34, ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "84", 34, ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "13", 34, ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "10", 34
+        DB      $0D
+l11_len EQU     $-l11
+
+        ; Line 20: initialize TR-DOS and load proj112.C at $8000.
         DB      0,20
         DW      l20_len
 l20:
-        DB      RANDOMIZE, USR, "15619", $0E, 0, 0
+        DB      RANDOMIZE, USR, "15619", $0E, $00, $00
         DW      15619
-        DB      0
-        ; Select ATM 640x200 BEFORE LOAD (port #FD77, value #C2).
-        DB      $3A, OUT_CMD, " VAL ", VAL, 34, "64887", 34
-        DB      ",VAL ", VAL, 34, "194", 34
-        DB      $3A, REM, $3A
-        DB      "LOAD ", 34, "proj112", 34, " CODE 32768", $0D
+        DB      $00
+        DB      $3A
+        DB      LOAD, 34, "proj112", 34, CODE
+        DB      "32768", $0E, $00, $00, $00, $80, $00
+        DB      $0D
 l20_len EQU     $-l20
 
+        ; Line 21: print LOADED after LOAD returns to BASIC.
+        DB      0,21
+        DW      l21_len
+l21:
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "76", 34, ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "79", 34, ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "65", 34, ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "68", 34, ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "69", 34, ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "68", 34, ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "13", 34, ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "10", 34
+        DB      $0D
+l21_len EQU     $-l21
+
+        ; Line 30: mark handoff, then execute at $8000.
         DB      0,30
         DW      l30_len
 l30:
-        DB      RANDOMIZE,USR,"32768",$0E,0,0
-        DW      32768
-        DB      0, $0D
+        DB      OUT_CMD
+        DB      "239", $0E, $00, $00, $EF, $00, $00
+        DB      ","
+        DB      "2", $0E, $00, $00, $02, $00, $00
+        DB      ":"
+        DB      RANDOMIZE, USR, VAL, 34, "32768", 34
+        DB      $0D
 l30_len EQU     $-l30
 basic_loader_end:
 
-        SAVETRD "project112.TRD","proj112.B",basic_loader,basic_loader_end-basic_loader,10
+        SAVETRD "project112.TRD","boot.B",basic_loader,basic_loader_end-basic_loader,10
         SAVETRD "project112.TRD","proj112.C",$8000,ProgramEnd112-$8000
