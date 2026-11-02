@@ -1,87 +1,43 @@
 ; =========================================================================
-; PROJECT112 — VIDEO MODE CONTROL PIPELINE (UNREAL_SPECCY SYNCED)
-; Cyclic mode selection, hardware register and paging setup.
+; PROJECT112 — ATM TURBO 2+ v7.10 VIDEO MODE CONTROL
+; ATM system port #77, bits D2..D0 select the video mode:
+;   3 = Sinclair 256x192
+;   2 = 640x200 hardware multicolor
+;   0 = 320x200 EGA, 16 colors
+;   6 = 80x25 text
+;
+; D7=1 default on v7.10, D6=1 disables 8031 keyboard MCU,
+; D5=1 enables HSYNC interrupt, D4=0 reserved, D3=0 (3.5 MHz).
 ; =========================================================================
 
 SwitchToNextVideoMode:
         LD      A,(Current_Mode_Index)
         INC     A
         CP      Mode_Count
-        JR      C,ModeIndexReady112
+        JR      C,ATMModeIndexReady112
         XOR     A
-ModeIndexReady112:
+ATMModeIndexReady112:
         LD      (Current_Mode_Index),A
         CALL    ApplyVideoMode
         CALL    DrawDemoScreen
         RET
 
 ApplyVideoMode:
-        LD      HL,Debug_ModeApply112
-        CALL    DebugPrintString112
-        
-        ; 1. Настройка и коммутация конфигурационного порта $EFF7
         LD      A,(Current_Mode_Index)
         LD      L,A
         LD      H,0
-        LD      DE,Mode_Hardware_Bytes
+        LD      DE,ATM_Mode_Bytes112
         ADD     HL,DE
         LD      A,(HL)
-        LD      (Current_Mode_Byte),A
-        LD      BC,$EFF7
-        OUT     (C),A
-
-        ; 2. Распределение системных страниц памяти через порт $7FFD
-        LD      A,(Current_Mode_Index)
-        CP      3                       ; Режим 3: 16-Color
-        JR      Z,.init_16color_pages
-        CP      4                       ; Режим 4: Pentagon 384x304
-        JR      Z,.init_384_pages
-
-        ; Стандартная конфигурация для режимов 0, 1, 2 (RAM 5)
-        LD      A,$10
-        JR      ModePageReady112
-
-.init_16color_pages:
-        ; 16-color: page 5 остаётся в $4000 (bit 3 = 0),
-        ; page 4 отображается в $C000. Так CPU-адреса плоскостей
-        ; C000/4000/E000/6000 совпадают с физической раскладкой
-        ; UnrealSpeccy p4bpp: temp.base = page 5, смещения
-        ; -$4000 / 0 / -$2000 / +$2000 соответственно.
-        LD      A,$04
-        JR      ModePageReady112
-
-.init_384_pages:
-        ; Pentagon 384x304 uses RAM page 4 at $C000 and fixed page 5 at $4000.
-        LD      A,$04
-
-ModePageReady112:
-        LD      BC,$7FFD
-        OUT     (C),A
-
-        ; 3. Установка цвета бордюра через порт $FE
-        LD      A,(Current_Mode_Index)
-        LD      L,A
-        LD      H,0
-        LD      DE,Mode_Border_Colors
-        ADD     HL,DE
-        LD      A,(HL)
-        OUT     ($FE),A
+        OR      $E0
+        OUT     ($77),A
         RET
 
+Mode_Count             EQU 4
+ATM_Mode_Bytes112:
+        DB      3                       ; 0: Sinclair 256x192
+        DB      2                       ; 1: 640x200 hardware multicolor
+        DB      0                       ; 2: 320x200 EGA 16-color
+        DB      6                       ; 3: 80x25 hardware text
 
-; Mode-control constants and lookup tables.
-Mode_Count             EQU 5
 Current_Mode_Byte:     DB 0
-Debug_ModeApply112:    DEFM "VIDEO MODE APPLY",13,10,0
-
-; UnrealSpeccy / Pentagon 1024 mode bits:
-; D0=16-color, D1=512x192, D5=hardware multicolor, D6=384x304.
-Mode_Hardware_Bytes:
-        DB      $00                     ; Mode 0: Standard 256x192
-        DB      $02                     ; Mode 1: 512x192
-        DB      $20                     ; Mode 2: Hardware Multicolor
-        DB      $01                     ; Mode 3: Pentagon 16-Color
-        DB      $40                     ; Mode 4: Pentagon 384x304
-
-Mode_Border_Colors:
-        DB      1,2,4,5,6
