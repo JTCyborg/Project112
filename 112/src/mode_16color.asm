@@ -1,56 +1,88 @@
 ; =========================================================================
-; PROJECT112 — VIDEO MODE 3: PENTAGON 16-COLOR (БЕЗОПАСНЫЙ СИНХРОННЫЙ)
+; PROJECT112 — VIDEO MODE 3: PENTAGON 16-COLOR
+; Pentagon 16col v1.1 memory layout:
+;   C000, 4000, E000, 6000 for each byte column, then next column.
+; Each of the four regions contributes one 2-pixel pair to an 8-pixel cell.
+; The offset inside each 6K region uses the standard Spectrum bitmap layout.
 ; =========================================================================
 
 ClearVideoMemory_16Color112:
+        ; Page 5 is visible at $4000-$7FFF. It contains the 4000/6000 regions.
         LD      HL,$4000
         LD      DE,$4001
         LD      BC,$3FFF
         LD      (HL),0
         LDIR
+
+        ; Page 7 is mapped at $C000 by paging value $17.
+        ; Clear the two 6K regions used by 16col; do not touch the gaps.
+        LD      HL,$C000
+        LD      DE,$C001
+        LD      BC,6143
+        LD      (HL),0
+        LDIR
+
+        LD      HL,$E000
+        LD      DE,$E001
+        LD      BC,6143
+        LD      (HL),0
+        LDIR
         RET
 
 RenderGlyph_16Color112:
-        ; 1. Безопасный расчет абсолютного Y строки (0..191)
-        LD      A,(Temp_Y112)           ; Y знакоместа (0..23)
-        SLA     A
-        SLA     A
-        SLA     A                       ; A = Y * 8
+        ; Absolute raster line Y = character_row*8 + glyph_line (0..191).
+        LD      A,(Temp_Y112)
+        ADD     A,A
+        ADD     A,A
+        ADD     A,A
         LD      B,A
-        LD      A,(GlyphLine112)        ; Текущая строка глифа (0..7)
-        ADD     A,B                     ; A = Absolute Y (0..191)
-        
-        ; 2. Вычисляем смещение строки: HL = Y * 32
+        LD      A,(GlyphLine112)
+        ADD     A,B
+        LD      B,A
+
+        ; Standard Spectrum bitmap address:
+        ; H = $40 | ((Y & $C0) >> 3) | (Y & 7)
+        ; L = ((Y & $38) << 2) | character_column
+        LD      A,B
+        AND     $C0
+        RRCA
+        RRCA
+        RRCA
+        OR      $40
+        LD      H,A
+        LD      A,B
+        AND     7
+        OR      H
+        LD      H,A
+
+        LD      A,B
+        AND     $38
+        RLCA
+        RLCA
         LD      L,A
-        LD      H,0                     ; HL = Y
-        LD      E,L
-        LD      D,H                     ; DE = Y
-        
-        ; Умножаем HL на 32 через 16-битные безопасные сложения
-        ADD     HL,HL                   ; *2
-        ADD     HL,HL                   ; *4
-        ADD     HL,HL                   ; *8
-        ADD     HL,HL                   ; *16
-        ADD     HL,HL                   ; *32
-        
-        ; 3. Добавляем горизонтальное смещение X знакоместа
         LD      A,(Temp_X112)
-        LD      E,A
-        LD      D,0
-        ADD     HL,DE                   ; HL = (Y * 32) + X
-        
-        ; 4. Добавляем базовый адрес видеоокна Пентагона ($4000)
-        LD      DE,$4000
-        ADD     HL,DE
+        OR      L
+        LD      L,A
+
+        ; The bitmap formula above produces an absolute Spectrum address
+        ; in $4000-$57FF. The four 16col planes need a page-relative
+        ; offset in $0000-$17FF before adding their own base address.
+        ; Without this subtraction, plane writes land at $8000/$A000
+        ; and wraparound addresses, overwriting the running program.
+        LD      A,H
+        SUB     $40
+        LD      H,A
         LD      (ColorOffset112),HL
-        
-        ; 5. Инициализация маски шрифта
+
+        ; Four successive regions supply the four 2-pixel pairs
+        ; across one 8-pixel character cell.
         LD      A,(Temp_FontByte112)
         LD      (ColorShiftByte112),A
         XOR     A
         LD      (ColorPlaneIndex112),A
 
-.plane_loop:
+ColorPairLoop112:
+        ; Take the next two source pixels, left to right.
         LD      A,(ColorShiftByte112)
         RLCA
         RLCA
@@ -63,6 +95,7 @@ RenderGlyph_16Color112:
         LD      A,(HL)
         LD      (ColorByte112),A
 
+        ; Pentagon 16col interleave order: C000, 4000, E000, 6000.
         LD      A,(ColorPlaneIndex112)
         ADD     A,A
         LD      E,A
@@ -73,10 +106,9 @@ RenderGlyph_16Color112:
         INC     HL
         LD      D,(HL)
         EX      DE,HL
-        
         LD      DE,(ColorOffset112)
         ADD     HL,DE
-        
+
         LD      A,(ColorByte112)
         LD      (HL),A
 
@@ -84,7 +116,7 @@ RenderGlyph_16Color112:
         INC     A
         LD      (ColorPlaneIndex112),A
         CP      4
-        JP      NZ,.plane_loop
+        JP      NZ,ColorPairLoop112
         RET
 
 RenderAttributes_16Color112:

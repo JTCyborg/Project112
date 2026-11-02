@@ -1,21 +1,29 @@
 ; =========================================================================
-; PROJECT112 — VIDEO MODE 4: PENTAGON 384x304 (БЕЗОПАСНЫЙ СИНХРОННЫЙ)
+; PROJECT112 — VIDEO MODE 4: PENTAGON 384x304
+; RAM page 4 is mapped at $C000; RAM page 5 is fixed at $4000.
+; XYSC384 selects the appropriate window for each vertical screen band.
 ; =========================================================================
 
 ClearVideoMemory_384112:
-        LD      A,$15
+        ; Clear the fixed RAM page 5 window ($4000-$7FFF).
+        LD      A,$10
         LD      BC,$7FFD
         OUT     (C),A
         LD      HL,$4000
         LD      DE,$4001
-        LD      BC,6143
+        LD      BC,$3FFF
         LD      (HL),0
         LDIR
 
-        LD      HL,$5800
-        LD      DE,$5801
-        LD      BC,767
-        LD      (HL),%00000111
+        ; Map RAM page 4 at $C000 and clear it. XYSC384 uses this page
+        ; for the top and bottom bands of the 384x304 screen.
+        LD      A,$04
+        LD      BC,$7FFD
+        OUT     (C),A
+        LD      HL,$C000
+        LD      DE,$C001
+        LD      BC,$3FFF
+        LD      (HL),0
         LDIR
         RET
 
@@ -38,7 +46,6 @@ RenderGlyph_384112:
         LD      A,(Temp_X112)
         LD      E,A
         CALL    XYSC384_112
-        
         LD      A,(Temp_FontByte112)
         LD      (HL),A
         RET
@@ -57,11 +64,12 @@ RenderAttributes_384112:
         LD      E,A
         CALL    XYSC384_112
         CALL    SA384_112
-        
-        LD      A,$07                   ; Стандартный монохромный атрибут
+        LD      A,$07
         LD      (HL),A
         RET
 
+; XYSC384 input: BC=scanline 0..303, E=byte column 0..47.
+; Output: HL=bitmap address in the appropriate mapped RAM window.
 XYSC384_112:
         CALL    YSC384_112
         LD      A,E
@@ -85,8 +93,7 @@ YSC384_112:
         AND     7
         LD      H,A
         XOR     C
-        ADD     A,A
-        ADD     A,A
+        ; YSC384 uses (Y & $F8) * 4, not *16.
         ADD     A,A
         ADD     A,A
         LD      L,A
