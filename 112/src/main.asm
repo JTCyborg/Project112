@@ -488,17 +488,17 @@ l11:
         DB      $0D
 l11_len EQU     $-l11
 
-        ; Line 20: initialize TR-DOS and load proj112.C at $8000.
+        ; Line 20: standard TR-DOS loader trampoline.
+        ; Keep LOAD after REM exactly as in the proven working Project122
+        ; loader: USR 15619 processes the command tail and loads proj112.C.
         DB      0,20
         DW      l20_len
 l20:
         DB      RANDOMIZE, USR, "15619", $0E, $00, $00
         DW      15619
-        DB      $00
-        DB      $3A
-        DB      LOAD, 34, "proj112", 34, CODE
-        DB      "32768", $0E, $00, $00, $00, $80, $00
-        DB      $0D
+        DB      0
+        DB      $3A, REM, $3A
+        DB      "LOAD ", 34, "proj112", 34, " CODE 32768", $0D
 l20_len EQU     $-l20
 
         ; Line 21: print LOADED after LOAD returns to BASIC.
