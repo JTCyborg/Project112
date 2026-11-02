@@ -29,7 +29,7 @@ MainLoop112:
         ; Space is bit 0 of the $7FFE keyboard half-row (active low).
         LD      BC,$7FFE
         IN      A,(C)
-        BIT     0,A
+        BIT     4,A
         JR      Z,SpacePressed112
 
         ; ESC is bit 0 of the $7FFE? Keep this tester single-key and
@@ -39,7 +39,7 @@ MainLoop112:
 SpacePressed112:
 WaitSpaceRelease112:
         IN      A,(C)
-        BIT     0,A
+        BIT     4,A
         JR      Z,WaitSpaceRelease112
         CALL    SwitchToNextVideoMode
         JR      MainLoop112
@@ -145,6 +145,9 @@ DemoColumnLoop112:
         LD      D,A
         LD      A,(Demo_Character112)
         CALL    PrintChar112
+        LD      A,(Demo_Character112)
+        INC     A
+        LD      (Demo_Character112),A
 
         LD      A,(Demo_Column112)
         INC     A
@@ -224,6 +227,7 @@ GlyphLineLoop112:
 
         LD      HL,(FontPointer112)
         LD      A,(HL)
+        LD      (Temp_FontByte112),A
         INC     HL
         LD      (FontPointer112),HL
         PUSH    HL
@@ -247,6 +251,7 @@ GlyphLineLoop112:
         LD      A,(Temp_X112)
         OR      L
         LD      L,A
+        LD      A,(Temp_FontByte112)
         LD      (HL),A
         POP     HL
 
@@ -308,6 +313,7 @@ Temp_X112:             DB 0
 Temp_Y112:             DB 0
 GlyphLine112:          DB 0
 FontPointer112:        DW 0
+Temp_FontByte112:      DB 0
 Demo_Character112:     DB 32
 Demo_Row112:           DB 0
 Demo_Column112:        DB 0
