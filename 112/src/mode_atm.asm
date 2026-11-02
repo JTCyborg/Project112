@@ -1,14 +1,17 @@
 ; =========================================================================
-; PROJECT112 — NATIVE ATM TURBO 2+ v7.10 VIDEO MEMORY
-; Pages: page 5 at $4000, page 1 at $C000.
-; 640x200 and 80x25 split even/odd columns into the two 8K halves.
-; EGA 320x200x16 uses four 8K layers:
-; $C000, $4000, $E000, $6000. Each layer is 40*200 bytes.
+; PROJECT112 — ATM TURBO 2+ v7.10 VIDEO MEMORY
+;
+; Physical RAM page mapping is configured once in main.asm:
+;   CPU $4000-$7FFF -> RAM page 5
+;   CPU $C000-$FFFF -> RAM page 1
+;
+; ATM video controller fetches page 5/page 1 in four 8K video regions.
+; All offsets below are relative to the corresponding 16K page.
 ; =========================================================================
+
 ClearVideoMemory_ATM112:
-        LD      A,$11
-        LD      BC,$7FFD
-        OUT     (C),A
+        ; Clear both mapped physical video pages. Keep the program and stack
+        ; in window 2 ($8000-$BFFF), which is not touched here.
         LD      HL,$4000
         LD      DE,$4001
         LD      BC,$3FFF
@@ -21,12 +24,18 @@ ClearVideoMemory_ATM112:
         LDIR
         RET
 
-; ATM 640x200: bitmap page5, attributes page1, 40 bytes per scanline.
+; -------------------------------------------------------------------------
+; ATM 640x200: 40 bytes per scanline.
+; Each 8-pixel cell occupies one byte. Even/odd cell columns are separated
+; into the first/second 8K halves of page 5 and page 1.
+; -------------------------------------------------------------------------
 RenderGlyph_ATM640112:
         CALL    ATM_CalcPixelOffset112
         LD      A,(Temp_X112)
         AND     1
         LD      (ATM_Parity112),A
+
+        ; Bitmap byte in page 5.
         LD      HL,(ATM_Offset112)
         LD      DE,$4000
         LD      A,(ATM_Parity112)
@@ -37,6 +46,8 @@ ATM640PixelBaseReady112:
         ADD     HL,DE
         LD      A,(Temp_FontByte112)
         LD      (HL),A
+
+        ; Attribute byte in page 1, same parity half.
         LD      HL,(ATM_Offset112)
         LD      DE,$C000
         LD      A,(ATM_Parity112)
@@ -49,21 +60,36 @@ ATM640AttrBaseReady112:
         LD      (HL),A
         RET
 
-; ATM EGA 320x200x16: four 2-pixel pairs per 8-pixel glyph.
+; -------------------------------------------------------------------------
+; ATM EGA 320x200x16.
+; One character cell is 8 pixels = four two-pixel bytes.
+; Each scanline has 160 pair bytes, distributed across four 8K regions.
+; CPU address offset within each region is row*40 + cell_column*4.
+;
+; Pair order across regions:
+;   0: page 1, first half ($C000)
+;   1: page 5, first half ($4000)
+;   2: page 1, second half ($E000)
+;   3: page 5, second half ($6000)
+; -------------------------------------------------------------------------
 RenderGlyph_ATMEGA112:
         CALL    ATM_CalcEGARowOffset112
-        ; One byte per character column in each of the four interleaved layers.
         LD      A,(Temp_X112)
+        ADD     A,A
+        ADD     A,A
         LD      E,A
         LD      D,0
         LD      HL,(ATM_Offset112)
         ADD     HL,DE
         LD      (ATM_Offset112),HL
+
         LD      A,(Temp_FontByte112)
         LD      (ColorShiftByte112),A
         XOR     A
         LD      (ColorPlaneIndex112),A
+
 ATM_EGAPairLoop112:
+        ; Extract the next two source pixels, left pixel first.
         LD      A,(ColorShiftByte112)
         RLCA
         RLCA
@@ -75,6 +101,8 @@ ATM_EGAPairLoop112:
         ADD     HL,DE
         LD      A,(HL)
         LD      (ColorByte112),A
+
+        ; Select one of the four hardware video regions.
         LD      A,(ColorPlaneIndex112)
         ADD     A,A
         LD      E,A
@@ -89,6 +117,7 @@ ATM_EGAPairLoop112:
         ADD     HL,DE
         LD      A,(ColorByte112)
         LD      (HL),A
+
         LD      A,(ColorPlaneIndex112)
         INC     A
         LD      (ColorPlaneIndex112),A
@@ -96,12 +125,22 @@ ATM_EGAPairLoop112:
         JR      NZ,ATM_EGAPairLoop112
         RET
 
-; ATM 80x25 hardware text: character codes in page5, attributes in page1.
+; -------------------------------------------------------------------------
+; ATM 80x25 hardware text.
+; Page 5 character codes:
+;   even columns -> $01C0 + row*64 + column/2
+;   odd columns  -> $21C0 + row*64 + column/2
+; Page 1 attributes are crossed:
+;   even columns -> $21C0 + row*64 + column/2
+;   odd columns  -> $01C0 + row*64 + column/2
+; -------------------------------------------------------------------------
 RenderChar_ATMText112:
         CALL    ATM_CalcTextOffset112
         LD      A,(Temp_X112)
         AND     1
         LD      (ATM_Parity112),A
+
+        ; Character code in page 5.
         LD      HL,(ATM_Offset112)
         LD      DE,$4000
         LD      A,(ATM_Parity112)
@@ -112,19 +151,21 @@ ATMTextCharBaseReady112:
         ADD     HL,DE
         LD      A,(Temp_Character112)
         LD      (HL),A
+
+        ; Attribute byte in page 1, opposite parity half.
         LD      HL,(ATM_Offset112)
-        LD      DE,$C000
+        LD      DE,$E000
         LD      A,(ATM_Parity112)
         OR      A
         JR      Z,ATMTextAttrBaseReady112
-        LD      DE,$E000
+        LD      DE,$C000
 ATMTextAttrBaseReady112:
         ADD     HL,DE
         LD      A,$47
         LD      (HL),A
         RET
 
-; Pixel offset for 640x200: (character_row*8 + glyph_line)*40 + col/2.
+; 640x200 offset: (character_row*8 + glyph_line)*40 + column/2.
 ATM_CalcPixelOffset112:
         LD      A,(Temp_Y112)
         ADD     A,A
@@ -136,13 +177,28 @@ ATM_CalcPixelOffset112:
         CALL    ATM_CalcYTimes40Only112
         JR      ATM_AddHalfColumn112
 
-; Text offset: character_row*40 + col/2.
+; 80x25 offset: $01C0 + character_row*64 + column/2.
 ATM_CalcTextOffset112:
         LD      A,(Temp_Y112)
-        CALL    ATM_CalcYTimes40Only112
-        JR      ATM_AddHalfColumn112
+        LD      L,A
+        LD      H,0
+        ADD     HL,HL
+        ADD     HL,HL
+        ADD     HL,HL
+        ADD     HL,HL
+        ADD     HL,HL
+        ADD     HL,HL
+        LD      DE,$01C0
+        ADD     HL,DE
+        LD      A,(Temp_X112)
+        SRL     A
+        LD      E,A
+        LD      D,0
+        ADD     HL,DE
+        LD      (ATM_Offset112),HL
+        RET
 
-; EGA has one byte per character column in each layer: row*40 + col.
+; EGA row offset: (character_row*8 + glyph_line)*40.
 ATM_CalcEGARowOffset112:
         LD      A,(Temp_Y112)
         ADD     A,A
@@ -163,7 +219,7 @@ ATM_AddHalfColumn112:
         LD      (ATM_Offset112),HL
         RET
 
-; A*40 = A*5*8. Stores the row offset without a column term.
+; A*40 = A*5*8. Stores row offset without a column term.
 ATM_CalcYTimes40Only112:
         LD      E,A
         LD      D,0
