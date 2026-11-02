@@ -235,7 +235,7 @@ GridCharReady112:
         LD      B,A
         LD      A,(Grid_Height112)
         CP      B
-        JR      NZ,DemoRowLoop112
+        JP      NZ,DemoRowLoop112
 
         LD      HL,Debug_ScreenDrawn112
         CALL    DebugPrintString112
