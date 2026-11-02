@@ -24,8 +24,12 @@ Init_Z80_System112:
 
         XOR     A
         LD      (Current_Mode_Index),A
+        LD      HL,Debug_RuntimeStart112
+        CALL    DebugPrintString112
         CALL    ApplyVideoMode
         CALL    DrawDemoScreen
+        LD      HL,Debug_Ready112
+        CALL    DebugPrintString112
 
 MainLoop112:
         ; Space is bit 4 of the $7FFE keyboard half-row (active low).
@@ -42,6 +46,8 @@ WaitSpaceRelease112:
         IN      A,(C)
         BIT     4,A
         JR      Z,WaitSpaceRelease112
+        LD      HL,Debug_SpacePressed112
+        CALL    DebugPrintString112
         CALL    SwitchToNextVideoMode
         JR      MainLoop112
 
@@ -58,6 +64,8 @@ ModeIndexReady112:
         RET
 
 ApplyVideoMode:
+        LD      HL,Debug_ModeApply112
+        CALL    DebugPrintString112
         LD      A,(Current_Mode_Index)
         LD      L,A
         LD      H,0
@@ -75,6 +83,25 @@ ApplyVideoMode:
         ADD     HL,DE
         LD      A,(HL)
         OUT     ($FE),A
+        RET
+
+; -------------------------------------------------------------------------
+; Debug output — UnrealSpeccy diagnostic port #EF.
+; HL points to a zero-terminated string. AF and HL are preserved.
+; -------------------------------------------------------------------------
+DebugPrintString112:
+        PUSH    AF
+        PUSH    HL
+DebugPrintLoop112:
+        LD      A,(HL)
+        OR      A
+        JR      Z,DebugPrintDone112
+        OUT     (#EF),A
+        INC     HL
+        JR      DebugPrintLoop112
+DebugPrintDone112:
+        POP     HL
+        POP     AF
         RET
 
 ; Clear the full 16K screen window in RAM page 5. This also clears
@@ -159,6 +186,8 @@ DemoColumnLoop112:
         LD      (Demo_Row112),A
         CP      6
         JR      NZ,DemoRowLoop112
+        LD      HL,Debug_ScreenDrawn112
+        CALL    DebugPrintString112
         RET
 
 ; Print zero-terminated string at C=character column, D=character row.
@@ -294,6 +323,12 @@ Demo_Character112:     DB 32
 Demo_Row112:           DB 0
 Demo_Column112:        DB 0
 
+Debug_RuntimeStart112: DEFM "P112 RUNNING",13,10,0
+Debug_ModeApply112:    DEFM "VIDEO MODE APPLY",13,10,0
+Debug_ScreenDrawn112:  DEFM "SCREEN DRAWN",13,10,0
+Debug_Ready112:        DEFM "VIDEO TEST READY",13,10,0
+Debug_SpacePressed112: DEFM "SPACE PRESSED",13,10,0
+
 Text_Title112:         DEFM "PROJECT112 VIDEO MODE TEST",0
 Text_Space112:         DEFM "PRESS SPACE TO CHANGE MODE",0
 Text_Mode112:          DEFM "ACTIVE #EFF7 MODE:",0
@@ -340,31 +375,99 @@ USR         EQU $C0
 REM         EQU $EA
 
 basic_loader:
+        ; Line 10: mark loader entry, then reserve BASIC memory.
         DB      0,10
-        DW      l10_len
-l10:
-        DB      CLEAR,"32767",$0E,0,0
+        DW      L10_END-L10
+L10:
+        DB      OUT_CMD
+        DB      "239", #0E, #00, #00, #EF, #00, #00
+        DB      ","
+        DB      "1", #0E, #00, #00, #01, #00, #00
+        DB      ":"
+        DB      CLEAR, "32767", #0E, #00, #00
         DW      32767
-        DB      0,$0D
-l10_len EQU $-l10
+        DB      #0D
+L10_END:
 
+        ; Line 11: P112 START -> diagnostic port #EF.
+        DB      0, 11
+        DW      L11_END-L11
+L11:
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "80", 34
+        DB      ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "49", 34
+        DB      ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "49", 34
+        DB      ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "50", 34
+        DB      ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "32", 34
+        DB      ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "83", 34
+        DB      ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "84", 34
+        DB      ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "65", 34
+        DB      ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "82", 34
+        DB      ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "84", 34
+        DB      ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "13", 34
+        DB      ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "10", 34
+        DB      #0D
+L11_END:
+
+        ; Line 20: initialize TR-DOS, then load the machine-code file.
+        ; LOAD and CODE are BASIC tokens, not printable text.
         DB      0,20
-        DW      l20_len
-l20:
-        DB      RANDOMIZE,USR,"15619",$0E,0,0
+        DW      L20_END-L20
+L20:
+        DB      RANDOMIZE, USR, "15619", #0E, #00, #00
         DW      15619
-        DB      0
-        DB      $3A,REM,$3A
-        DB      "LOAD ",34,"proj112",34," CODE 32768",$0D
-l20_len EQU $-l20
+        DB      #00, #3A
+        DB      LOAD, 34, "proj112", 34, CODE
+        DB      "32768", #0E, #00, #00, #00, #80, #00
+        DB      #0D
+L20_END:
 
+        ; Line 21: LOADED -> diagnostic port #EF.
+        DB      0, 21
+        DW      L21_END-L21
+L21:
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "76", 34
+        DB      ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "79", 34
+        DB      ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "65", 34
+        DB      ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "68", 34
+        DB      ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "69", 34
+        DB      ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "68", 34
+        DB      ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "13", 34
+        DB      ":"
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "10", 34
+        DB      #0D
+L21_END:
+
+        ; Line 30: enter runtime phase and execute the program at $8000.
         DB      0,30
-        DW      l30_len
-l30:
-        DB      RANDOMIZE,USR,"32768",$0E,0,0
+        DW      L30_END-L30
+L30:
+        DB      OUT_CMD
+        DB      "239", #0E, #00, #00, #EF, #00, #00
+        DB      ","
+        DB      "2", #0E, #00, #00, #02, #00, #00
+        DB      ":"
+        DB      RANDOMIZE, USR, "32768", #0E, #00, #00
         DW      32768
-        DB      0,$0D
-l30_len EQU $-l30
+        DB      #0D
+L30_END:
+
 basic_loader_end:
 
         SAVETRD "project112.TRD","proj112.B",basic_loader,basic_loader_end-basic_loader,10
