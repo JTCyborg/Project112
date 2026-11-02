@@ -2,7 +2,7 @@
 ; PROJECT112 — VIDEO MODE DEMONSTRATOR
 ; Target: Pentagon 1024 / UnrealSpeccy
 ; Space: cycle video modes.
-; Character test: ASCII 32..127, 16 columns x 6 rows.
+; Character test: full-screen grid; geometry follows selected mode.
 ; =========================================================================
 
         DEVICE ZXSPECTRUM128
@@ -120,71 +120,86 @@ ClearVideoMemory112:
 DrawDemoScreen:
         CALL    ClearVideoMemory112
 
-        LD      HL,Text_Title112
-        LD      C,0
-        LD      D,0
-        CALL    PrintString112
-
-        LD      HL,Text_Space112
-        LD      C,0
-        LD      D,2
-        CALL    PrintString112
-
-        LD      HL,Text_Mode112
-        LD      C,0
-        LD      D,4
-        CALL    PrintString112
-
-        ; Print the active mode name.
+        ; Select the actual character grid for the active video mode.
         LD      A,(Current_Mode_Index)
-        LD      L,A
-        LD      H,0
-        ADD     HL,HL
-        LD      DE,Mode_Name_Pointers
-        ADD     HL,DE
-        LD      E,(HL)
-        INC     HL
-        LD      D,(HL)
-        EX      DE,HL
-        LD      C,0
-        LD      D,5
-        CALL    PrintString112
+        CP      1
+        JR      NZ,GridWidth32_112
+        LD      A,64
+        LD      (Grid_Width112),A
+        JR      GridGeometryReady112
+GridWidth32_112:
+        LD      A,32
+        LD      (Grid_Width112),A
+GridGeometryReady112:
+        LD      A,24
+        LD      (Grid_Height112),A
 
-        LD      HL,Text_Charset112
-        LD      C,0
-        LD      D,7
-        CALL    PrintString112
-
-        ; Character matrix: ASCII 32..127, 16 columns x 6 rows.
+        ; Draw every cell. The final row and column are explicit rulers.
         LD      A,32
         LD      (Demo_Character112),A
-        LD      A,0
+        XOR     A
         LD      (Demo_Row112),A
 DemoRowLoop112:
-        LD      A,0
+        XOR     A
         LD      (Demo_Column112),A
 DemoColumnLoop112:
         LD      A,(Demo_Column112)
         LD      C,A
         LD      A,(Demo_Row112)
-        ADD     A,8
         LD      D,A
+
+        ; Right edge = vertical ruler, bottom edge = horizontal ruler.
+        LD      A,(Demo_Row112)
+        LD      B,A
+        LD      A,(Grid_Height112)
+        DEC     A
+        CP      B
+        JR      Z,DrawBottomRuler112
+        LD      A,(Demo_Column112)
+        LD      B,A
+        LD      A,(Grid_Width112)
+        DEC     A
+        CP      B
+        JR      Z,DrawRightRuler112
         LD      A,(Demo_Character112)
+        JR      DrawGridCell112
+DrawBottomRuler112:
+        LD      A,'-'
+        LD      B,C
+        LD      A,(Grid_Width112)
+        DEC     A
+        CP      B
+        LD      A,'-'
+        JR      NZ,DrawGridCell112
+        LD      A,'+'
+        JR      DrawGridCell112
+DrawRightRuler112:
+        LD      A,'|'
+DrawGridCell112:
         CALL    PrintChar112
+
         LD      A,(Demo_Character112)
         INC     A
+        CP      127
+        JR      C,GridCharReady112
+        LD      A,32
+GridCharReady112:
         LD      (Demo_Character112),A
 
         LD      A,(Demo_Column112)
         INC     A
         LD      (Demo_Column112),A
-        CP      16
+        LD      B,A
+        LD      A,(Grid_Width112)
+        CP      B
         JR      NZ,DemoColumnLoop112
 
         LD      A,(Demo_Row112)
         INC     A
         LD      (Demo_Row112),A
-        CP      6
+        LD      B,A
+        LD      A,(Grid_Height112)
+        CP      B
         JR      NZ,DemoRowLoop112
         LD      HL,Debug_ScreenDrawn112
         CALL    DebugPrintString112
@@ -202,7 +217,7 @@ PrintString112:
         INC     C
         JR      PrintString112
 
-; Draw one 8x8 glyph. A=ASCII, C=column (0..31), D=row (0..23).
+; Draw one 8x8 glyph. A=ASCII, C=column, D=character row.
 ; The 8x8 font is stored as 96 consecutive glyphs for ASCII 32..127.
 PrintChar112:
         PUSH    BC
@@ -236,7 +251,11 @@ GlyphLineLoop112:
         INC     HL
         LD      (FontPointer112),HL
         PUSH    HL
-        ; Recalculate destination after using HL for the font pointer.
+        ; Recalculate destination for the selected bitmap organization.
+        LD      A,(Current_Mode_Index)
+        CP      1
+        JR      Z,PrintGlyph512_112
+        ; Standard 256x192 bitmap (also the pixel plane of A4B).
         LD      HL,0
         LD      A,(Temp_Y112)
         AND     $18
@@ -256,6 +275,44 @@ GlyphLineLoop112:
         LD      A,(Temp_X112)
         OR      L
         LD      L,A
+        JR      PrintGlyphStore112
+
+PrintGlyph512_112:
+        ; 512x192: even and odd byte columns are stored in separate
+        ; 16K screen halves. Each half receives byte index column/2.
+        LD      A,(Temp_Y112)
+        ADD     A,A
+        ADD     A,A
+        ADD     A,A
+        LD      B,A
+        LD      A,(GlyphLine112)
+        ADD     A,B
+        LD      B,A
+        LD      A,B
+        AND     $C0
+        RRCA
+        RRCA
+        RRCA
+        OR      $40
+        LD      H,A
+        LD      A,B
+        AND     7
+        OR      H
+        LD      H,A
+        LD      A,B
+        AND     $38
+        RLCA
+        RLCA
+        LD      L,A
+        LD      A,(Temp_X112)
+        SRL     A
+        OR      L
+        LD      L,A
+        LD      A,(Temp_X112)
+        AND     1
+        JR      Z,PrintGlyphStore112
+        SET     5,H
+PrintGlyphStore112:
         LD      A,(Temp_FontByte112)
         LD      (HL),A
         POP     HL
@@ -318,6 +375,8 @@ Temp_FontByte112:      DB 0
 Demo_Character112:     DB 32
 Demo_Row112:           DB 0
 Demo_Column112:        DB 0
+Grid_Width112:         DB 32
+Grid_Height112:        DB 24
 
 Debug_RuntimeStart112: DEFM "P112 RUNNING",13,10,0
 Debug_ModeApply112:    DEFM "VIDEO MODE APPLY",13,10,0
