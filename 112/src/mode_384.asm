@@ -132,3 +132,191 @@ SA384Positive112:
         XOR     H
         LD      H,A
         RET
+
+; 384x304 bitmap geometry test: nested byte-aligned outlines.
+; Insets: 0,16,32,48,64,80 pixels. Bitmap only; attributes bypassed.
+Draw384RectangleTest112:
+        LD      A,$04
+        LD      BC,$7FFD
+        OUT     (C),A
+        LD      A,0
+        LD      (RectLeftByte112),A
+        LD      A,47
+        LD      (RectRightByte112),A
+        LD      A,0
+        LD      (RectTopLo112),A
+        LD      (RectTopHi112),A
+        LD      A,47
+        LD      (RectBottomLo112),A
+        LD      A,1
+        LD      (RectBottomHi112),A
+        CALL    Draw384OneRectangle112
+        LD      A,2
+        LD      (RectLeftByte112),A
+        LD      A,45
+        LD      (RectRightByte112),A
+        LD      A,16
+        LD      (RectTopLo112),A
+        XOR     A
+        LD      (RectTopHi112),A
+        LD      A,31
+        LD      (RectBottomLo112),A
+        LD      A,1
+        LD      (RectBottomHi112),A
+        CALL    Draw384OneRectangle112
+        LD      A,4
+        LD      (RectLeftByte112),A
+        LD      A,43
+        LD      (RectRightByte112),A
+        LD      A,32
+        LD      (RectTopLo112),A
+        XOR     A
+        LD      (RectTopHi112),A
+        LD      A,15
+        LD      (RectBottomLo112),A
+        LD      A,1
+        LD      (RectBottomHi112),A
+        CALL    Draw384OneRectangle112
+        LD      A,6
+        LD      (RectLeftByte112),A
+        LD      A,41
+        LD      (RectRightByte112),A
+        LD      A,48
+        LD      (RectTopLo112),A
+        XOR     A
+        LD      (RectTopHi112),A
+        LD      A,255
+        LD      (RectBottomLo112),A
+        XOR     A
+        LD      (RectBottomHi112),A
+        CALL    Draw384OneRectangle112
+        LD      A,8
+        LD      (RectLeftByte112),A
+        LD      A,39
+        LD      (RectRightByte112),A
+        LD      A,64
+        LD      (RectTopLo112),A
+        XOR     A
+        LD      (RectTopHi112),A
+        LD      A,239
+        LD      (RectBottomLo112),A
+        XOR     A
+        LD      (RectBottomHi112),A
+        CALL    Draw384OneRectangle112
+        LD      A,10
+        LD      (RectLeftByte112),A
+        LD      A,37
+        LD      (RectRightByte112),A
+        LD      A,80
+        LD      (RectTopLo112),A
+        XOR     A
+        LD      (RectTopHi112),A
+        LD      A,223
+        LD      (RectBottomLo112),A
+        XOR     A
+        LD      (RectBottomHi112),A
+        CALL    Draw384OneRectangle112
+        ; Central vertical reference line.
+        LD      A,23
+        LD      (RectLeftByte112),A
+        LD      (RectRightByte112),A
+        XOR     A
+        LD      (RectTopLo112),A
+        LD      (RectTopHi112),A
+        LD      A,47
+        LD      (RectBottomLo112),A
+        LD      A,1
+        LD      (RectBottomHi112),A
+        CALL    Draw384OneRectangle112
+        RET
+
+Draw384OneRectangle112:
+        LD      A,(RectTopLo112)
+        LD      (RectYLo112),A
+        LD      A,(RectTopHi112)
+        LD      (RectYHi112),A
+Draw384VerticalLoop112:
+        LD      A,(RectYLo112)
+        LD      C,A
+        LD      A,(RectYHi112)
+        LD      B,A
+        LD      A,(RectLeftByte112)
+        LD      E,A
+        PUSH    BC
+        CALL    XYSC384_112
+        LD      A,$FF
+        LD      (HL),A
+        POP     BC
+        LD      A,(RectYLo112)
+        LD      C,A
+        LD      A,(RectYHi112)
+        LD      B,A
+        LD      A,(RectRightByte112)
+        LD      E,A
+        PUSH    BC
+        CALL    XYSC384_112
+        LD      A,$FF
+        LD      (HL),A
+        POP     BC
+        LD      A,(RectYLo112)
+        LD      C,A
+        LD      A,(RectYHi112)
+        LD      B,A
+        LD      A,(RectTopLo112)
+        CP      C
+        JR      NZ,Draw384CheckBottom112
+        LD      A,(RectTopHi112)
+        CP      B
+        CALL    Z,Draw384Horizontal112
+        JR      Draw384AdvanceY112
+Draw384CheckBottom112:
+        LD      A,(RectBottomLo112)
+        CP      C
+        JR      NZ,Draw384AdvanceY112
+        LD      A,(RectBottomHi112)
+        CP      B
+        CALL    Z,Draw384Horizontal112
+Draw384AdvanceY112:
+        LD      A,(RectYLo112)
+        INC     A
+        LD      (RectYLo112),A
+        JR      NZ,Draw384CompareY112
+        LD      A,(RectYHi112)
+        INC     A
+        LD      (RectYHi112),A
+Draw384CompareY112:
+        LD      A,(RectYLo112)
+        LD      C,A
+        LD      A,(RectYHi112)
+        LD      B,A
+        LD      A,(RectBottomLo112)
+        CP      C
+        JR      NZ,Draw384VerticalLoop112
+        LD      A,(RectBottomHi112)
+        CP      B
+        JR      NZ,Draw384VerticalLoop112
+        RET
+
+Draw384Horizontal112:
+        LD      A,(RectLeftByte112)
+        LD      (RectXByte112),A
+Draw384HorizontalLoop112:
+        LD      A,(RectYLo112)
+        LD      C,A
+        LD      A,(RectYHi112)
+        LD      B,A
+        LD      A,(RectXByte112)
+        LD      E,A
+        PUSH    BC
+        CALL    XYSC384_112
+        LD      A,$FF
+        LD      (HL),A
+        POP     BC
+        LD      A,(RectXByte112)
+        INC     A
+        LD      (RectXByte112),A
+        LD      B,A
+        LD      A,(RectRightByte112)
+        CP      B
+        JR      NC,Draw384HorizontalLoop112
+        RET
