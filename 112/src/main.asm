@@ -241,8 +241,6 @@ DrawBottomRuler112:
         LD      A,(Demo_Column112)
         INC     A
         LD      B,A
-        LD      A,10
-        LD      C,A
         LD      A,B
         CALL    Modulo10_112
         OR      A
