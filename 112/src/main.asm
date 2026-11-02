@@ -38,12 +38,12 @@ ATM_ModeReentry112:
         ; address-alias-safe block. Do not read variables or CALL code
         ; outside this block until the remapped execution path is known.
         LD      SP,$BFFF
-        LD      A,'R'
-        OUT     (#EF),A
         ; A still contains the video-mode value written to #FD77.
         ; Its low three bits give a visible border marker (mode 2 -> 2).
         AND     7
         OUT     ($FE),A
+        LD      A,'R'
+        OUT     (#EF),A
 ATM_ModeTransitionHalt112:
         JR      ATM_ModeTransitionHalt112
 
