@@ -32,8 +32,8 @@ Init_Z80_System112:
         CALL    DebugPrintString112
 
 MainLoop112:
-        ; Space is bit 0 of the $FFFE keyboard half-row (active low).
-        LD      BC,$FFFE
+        ; Space is bit 0 of keyboard row $BFFE (active low).
+        LD      BC,$BFFE
         IN      A,(C)
         BIT     0,A
         JR      Z,SpacePressed112
