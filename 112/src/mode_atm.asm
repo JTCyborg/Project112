@@ -51,10 +51,9 @@ ATM640AttrBaseReady112:
 
 ; ATM EGA 320x200x16: four 2-pixel pairs per 8-pixel glyph.
 RenderGlyph_ATMEGA112:
-        CALL    ATM_CalcPixelOffset112
+        CALL    ATM_CalcEGARowOffset112
+        ; One byte per character column in each of the four interleaved layers.
         LD      A,(Temp_X112)
-        ADD     A,A
-        ADD     A,A
         LD      E,A
         LD      D,0
         LD      HL,(ATM_Offset112)
@@ -125,7 +124,7 @@ ATMTextAttrBaseReady112:
         LD      (HL),A
         RET
 
-; Offset = (character_row*8 + glyph_line)*40.
+; Pixel offset for 640x200: (character_row*8 + glyph_line)*40 + col/2.
 ATM_CalcPixelOffset112:
         LD      A,(Temp_Y112)
         ADD     A,A
@@ -134,14 +133,38 @@ ATM_CalcPixelOffset112:
         LD      B,A
         LD      A,(GlyphLine112)
         ADD     A,B
-        JR      ATM_CalcYTimes40_112
+        CALL    ATM_CalcYTimes40Only112
+        JR      ATM_AddHalfColumn112
 
-; Offset = character_row*40.
+; Text offset: character_row*40 + col/2.
 ATM_CalcTextOffset112:
         LD      A,(Temp_Y112)
+        CALL    ATM_CalcYTimes40Only112
+        JR      ATM_AddHalfColumn112
 
-; A*40 = A*5*8, then add column/2.
-ATM_CalcYTimes40_112:
+; EGA has one byte per character column in each layer: row*40 + col.
+ATM_CalcEGARowOffset112:
+        LD      A,(Temp_Y112)
+        ADD     A,A
+        ADD     A,A
+        ADD     A,A
+        LD      B,A
+        LD      A,(GlyphLine112)
+        ADD     A,B
+        JP      ATM_CalcYTimes40Only112
+
+ATM_AddHalfColumn112:
+        LD      A,(Temp_X112)
+        SRL     A
+        LD      E,A
+        LD      D,0
+        LD      HL,(ATM_Offset112)
+        ADD     HL,DE
+        LD      (ATM_Offset112),HL
+        RET
+
+; A*40 = A*5*8. Stores the row offset without a column term.
+ATM_CalcYTimes40Only112:
         LD      E,A
         LD      D,0
         LD      L,A
@@ -152,10 +175,5 @@ ATM_CalcYTimes40_112:
         ADD     HL,HL
         ADD     HL,HL
         ADD     HL,HL
-        LD      A,(Temp_X112)
-        SRL     A
-        LD      E,A
-        LD      D,0
-        ADD     HL,DE
         LD      (ATM_Offset112),HL
         RET
