@@ -113,10 +113,13 @@ Alco384_PixelCoordinatesOK:
         LD      B,A
         LD      A,$80
 Alco384_MakeMask:
+        LD      A,B
         OR      A
         JR      Z,Alco384_MaskReady
+        LD      A,$80
+Alco384_MaskLoop:
         RRCA
-        DJNZ    Alco384_MakeMask
+        DJNZ    Alco384_MaskLoop
 Alco384_MaskReady:
         LD      (Alco384_PixelMask),A
 
