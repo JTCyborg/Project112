@@ -26,7 +26,7 @@ The system port is addressed as full I/O address `#FF77`. Mode values are `3, 2,
 
 The ATM hi-res modes use page 5 at `$4000` and page 1 at `$C000`. For 640x200 and 80x25, even and odd columns occupy separate 8K halves. EGA 320x200 uses the four layer bases `$C000`, `$4000`, `$E000`, `$6000`.
 
-The mode-switch trampoline is placed in the first 32-byte block at `$8000`, where A5..A7 and A8..A10 match. It jumps to a re-entry point instead of returning through a stack across the mode transition.
+The mode-switch trampoline is placed in the first 32-byte block at `$8000`, where A5..A7 and A8..A10 match. It jumps to a re-entry point instead of returning through a stack across the mode transition. The emulator setting `AtmMemSwap=1` is essential: it models the RAM address-line permutation performed when the D0 video-mode bit changes. A border-color marker is emitted after each successful transition.
 
 ## UnrealSpeccy configuration
 
@@ -34,7 +34,7 @@ The repository `unreal.ini` selects ATM Turbo 2+ v7.10:
 - `HIMEM=ATM710`
 - `RAMSize=1024`
 - `EFF7mask=0`
-- `AtmMemSwap=0`
+- `AtmMemSwap=1` — required to emulate the A5–A7/A8–A10 RAM address-line swap when crossing between Sinclair and ATM high-resolution modes.
 - `UsePalette=1`
 - `ROMSET=ATM2`
 
