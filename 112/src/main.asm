@@ -66,7 +66,10 @@ Init_Z80_System112:
         ; BASIC selected ATM 640x200 before loading this code.
         LD      A,1
         LD      (Current_Mode_Index),A
-        CALL    ATM640_MemoryPattern112
+        ; Render the actual character-grid test immediately after mapping VRAM.
+        ; The raw fill pattern is kept as a callable diagnostic, but must not
+        ; replace the normal startup renderer.
+        CALL    DrawDemoScreen
         LD      HL,Debug_Ready112
         CALL    DebugPrintString112
         JP      MainLoop112
@@ -525,6 +528,7 @@ l30:
         DB      RANDOMIZE, USR, VAL, 34, "32768", 34
         DB      $0D
 l30_len EQU     $-l30
+        DB      $80             ; End-of-BASIC-program marker.
 basic_loader_end:
 
         SAVETRD "project112.TRD","boot.B",basic_loader,basic_loader_end-basic_loader,10
