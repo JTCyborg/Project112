@@ -233,7 +233,7 @@ DrawGridCell112:
 
         LD      A,(Demo_Character112)
         INC     A
-        CP      127
+        CP      128
         JR      C,GridCharReady112
         LD      A,32
 GridCharReady112:
