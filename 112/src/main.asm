@@ -53,6 +53,92 @@ DebugPrintDone112:
         POP     AF
         RET
 
+; -------------------------------------------------------------------------
+; MODE 384x304 MEMORY DUMP
+; Dump both physical RAM pages used by the AlCo screen:
+;   CPU $4000-$7FFF = Pentagon RAM page 5
+;   CPU $C000-$FFFF = Pentagon RAM page 4
+; 16 bytes per row, address + HEX bytes. Output goes to debug port #EF.
+; -------------------------------------------------------------------------
+DebugDump384Memory112:
+        PUSH    AF
+        PUSH    BC
+        PUSH    DE
+        PUSH    HL
+        LD      HL,DebugDump384Begin112
+        CALL    DebugPrintString112
+
+        LD      HL,$4000
+        LD      D,$80
+        CALL    DebugDumpWindow112
+
+        LD      HL,$C000
+        LD      D,$00
+        CALL    DebugDumpWindow112
+
+        LD      HL,DebugDump384End112
+        CALL    DebugPrintString112
+        POP     HL
+        POP     DE
+        POP     BC
+        POP     AF
+        RET
+
+; HL = first address; D = high byte marking the exclusive end.
+; The second window naturally terminates when HL wraps from $FFFF to $0000.
+DebugDumpWindow112:
+DebugDumpRow112:
+        PUSH    DE
+        LD      A,H
+        CALL    DebugPrintHexByte112
+        LD      A,L
+        CALL    DebugPrintHexByte112
+        LD      A,':'
+        OUT     (#EF),A
+        LD      A,' '
+        OUT     (#EF),A
+        POP     DE
+        LD      B,16
+DebugDumpByte112:
+        LD      A,(HL)
+        CALL    DebugPrintHexByte112
+        LD      A,' '
+        OUT     (#EF),A
+        INC     HL
+        DJNZ    DebugDumpByte112
+        LD      A,13
+        OUT     (#EF),A
+        LD      A,10
+        OUT     (#EF),A
+        LD      A,H
+        CP      D
+        JR      NZ,DebugDumpRow112
+        RET
+
+; A = byte. Emits two uppercase hexadecimal digits.
+DebugPrintHexByte112:
+        PUSH    AF
+        AND     $F0
+        RRCA
+        RRCA
+        RRCA
+        RRCA
+        CALL    DebugPrintHexNibble112
+        POP     AF
+        AND     $0F
+        ; Fall through to the nibble formatter.
+DebugPrintHexNibble112:
+        ADD     A,'0'
+        CP      '9'+1
+        JR      C,DebugPrintHexOut112
+        ADD     A,'A'-'9'-1
+DebugPrintHexOut112:
+        OUT     (#EF),A
+        RET
+
+DebugDump384Begin112: DEFM 13,10,"384x304 RAM DUMP BEGIN",13,10,"PAGE5 $4000-$7FFF",13,10,0
+DebugDump384End112:   DEFM "PAGE4 $C000-$FFFF",13,10,"384x304 RAM DUMP END",13,10,0
+
 ; Clear the full 16K screen window in RAM page 5. This also clears
 ; the secondary $6000-$77FF plane used by 512x192 / A4B-style modes.
 ClearVideoMemory112:
@@ -193,6 +279,9 @@ GridCharReady112:
         JR      NZ,DemoRowLoop112
         LD      HL,Debug_ScreenDrawn112
         CALL    DebugPrintString112
+        LD      A,(Current_Mode_Index)
+        CP      4
+        CALL    Z,DebugDump384Memory112
         RET
 
 ; Return A = A modulo 10. Preserves BC and DE.
