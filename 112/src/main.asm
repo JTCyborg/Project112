@@ -580,11 +580,10 @@ YSC384_112:
         RRCA
         RRCA
         RRCA
-        JR      NZ,YSC384NoWrap112
+        JR      NZ,YSC384SkipLoad112
         LD      A,$C0-$38
+YSC384SkipLoad112:
         ADD     A,$38
-        JR      YSC384Low112
-YSC384NoWrap112:
         ADD     A,H
         LD      H,A
         RET
