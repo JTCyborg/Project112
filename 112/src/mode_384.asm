@@ -93,8 +93,7 @@ YSC384_112:
         AND     7
         LD      H,A
         XOR     C
-        ADD     A,A
-        ADD     A,A
+        ; YSC384 uses (Y & $F8) * 4, not *16.
         ADD     A,A
         ADD     A,A
         LD      L,A
