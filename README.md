@@ -20,7 +20,7 @@ Sinclair 256x192 is temporarily excluded from the runtime cycle. Its D0=1 transi
 
 ## Startup and memory-swap handling
 
-The BASIC loader selects ATM 640x200 (port #FD77 value #C2; RG0..RG2=010, VE1=1, VE0=1) BEFORE loading `proj112.C`. When `AtmMemSwap=1`, the emulator permutes RAM contents as the D0 mode bit changes. Loading the executable after selecting ATM mode ensures its bytes are placed in the correct post-swap layout.
+The TR-DOS BASIC loader is stored as `boot.b`. It does not change the video mode; it only loads `proj112.C` at address `$8000` and starts it. Video-mode initialization is owned by the program.
 
 The three active ATM modes use values 2, 0 and 6; D0 remains zero while cycling, so the executable and its data remain in place.
 
