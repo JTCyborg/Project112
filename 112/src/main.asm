@@ -147,7 +147,7 @@ Clear384UpperBank112:
         RET
 
 Clear16ColorPlanes112:
-        ; 16-color uses the two 6144-byte regions in fixed RAM bank 2.
+        ; 16-color uses the two 6144-byte regions in selected RAM bank 0.
         LD      HL,$C000
         LD      DE,$C001
         LD      BC,$17FF
