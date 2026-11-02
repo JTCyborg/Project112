@@ -30,69 +30,9 @@ Init_Z80_System112:
         CALL    DrawDemoScreen
         LD      HL,Debug_Ready112
         CALL    DebugPrintString112
+        JP      MainLoop112
 
-MainLoop112:
-        ; Space is bit 0 of keyboard row $7FFE (active low).
-        LD      BC,$7FFE
-        IN      A,(C)
-        BIT     0,A
-        JR      Z,SpacePressed112
 
-        ; Space advances one mode after key release.
-        JR      MainLoop112
-
-SpacePressed112:
-WaitSpaceRelease112:
-        IN      A,(C)
-        BIT     0,A
-        JR      Z,WaitSpaceRelease112
-        LD      HL,Debug_SpacePressed112
-        CALL    DebugPrintString112
-        CALL    SwitchToNextVideoMode
-        JR      MainLoop112
-
-SwitchToNextVideoMode:
-        LD      A,(Current_Mode_Index)
-        INC     A
-        CP      Mode_Count
-        JR      C,ModeIndexReady112
-        XOR     A
-ModeIndexReady112:
-        LD      (Current_Mode_Index),A
-        CALL    ApplyVideoMode
-        CALL    DrawDemoScreen
-        RET
-
-ApplyVideoMode:
-        LD      HL,Debug_ModeApply112
-        CALL    DebugPrintString112
-        LD      A,(Current_Mode_Index)
-        LD      L,A
-        LD      H,0
-        LD      DE,Mode_Hardware_Bytes
-        ADD     HL,DE
-        LD      A,(HL)
-        LD      (Current_Mode_Byte),A
-        LD      BC,$EFF7
-        OUT     (C),A
-
-        LD      A,(Current_Mode_Index)
-        CP      4
-        LD      A,$10
-        JR      NZ,ModePageReady112
-        LD      A,$04
-ModePageReady112:
-        LD      BC,$7FFD
-        OUT     (C),A
-
-        LD      A,(Current_Mode_Index)
-        LD      L,A
-        LD      H,0
-        LD      DE,Mode_Border_Colors
-        ADD     HL,DE
-        LD      A,(HL)
-        OUT     ($FE),A
-        RET
 
 ; -------------------------------------------------------------------------
 ; Debug output — UnrealSpeccy diagnostic port #EF.
@@ -368,14 +308,14 @@ PrintCharDone112:
         INCLUDE "src/mode_a4b.asm"
         INCLUDE "src/mode_16color.asm"
         INCLUDE "src/mode_384.asm"
+        INCLUDE "src/video_mode_control.asm"
+        INCLUDE "src/keyboard.asm"
 
 ; -------------------------------------------------------------------------
 ; Data
 ; -------------------------------------------------------------------------
-Mode_Count             EQU 5
 Saved_SP_112:          DW 0
 Current_Mode_Index:    DB 0
-Current_Mode_Byte:     DB 0
 Temp_Character112:     DB 0
 Temp_X112:             DB 0
 Temp_Y112:             DB 0
@@ -393,10 +333,8 @@ ColorPlaneIndex112:   DB 0
 ColorByte112:         DB 0
 
 Debug_RuntimeStart112: DEFM "P112 RUNNING",13,10,0
-Debug_ModeApply112:    DEFM "VIDEO MODE APPLY",13,10,0
 Debug_ScreenDrawn112:  DEFM "SCREEN DRAWN",13,10,0
 Debug_Ready112:        DEFM "VIDEO TEST READY",13,10,0
-Debug_SpacePressed112: DEFM "SPACE PRESSED",13,10,0
 
 Text_ModePrefix112:   DEFM "MODE: ",0
 
@@ -413,17 +351,6 @@ ModeName_HardwareMC112:DEFM "A4B MULTICOLOR",0
 ModeName_16Color112:   DEFM "16-COLOR 2PX/BYTE",0
 ModeName_384112:       DEFM "PENTAGON 384x304",0
 
-; UnrealSpeccy / Pentagon 1024 mode bits:
-; D0=16-color, D1=512x192, D5=hardware multicolor, D6=384x304.
-Mode_Hardware_Bytes:
-        DB      $00
-        DB      $02
-        DB      $20
-        DB      $01
-        DB      $40
-
-Mode_Border_Colors:
-        DB      1,2,4,5,6
 
 ; Index is the two adjacent glyph pixels: left in bit 1, right in bit 0.
 ; White=15, black=0, encoded with Pentagon 16-color component wiring.
