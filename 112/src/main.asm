@@ -1,11 +1,10 @@
 ; =========================================================================
 ; PROJECT112 — ATM TURBO 2+ v7.10 VIDEO MODE TEST
 ; Target: ATM710 / UnrealSpeccy
-; Space cycles native ATM video modes:
-;   0 Sinclair 256x192
-;   1 ATM hardware multicolor 640x200
-;   2 ATM EGA 320x200x16
-;   3 ATM hardware text 80x25
+; Diagnostic build: Space tests the Sinclair -> ATM 640x200 transition.
+; The alias-safe trampoline marks border color 2, emits 'R' to #EF,
+; then stops. Post-switch execution is deliberately disabled until
+; the remapped code/data layout is implemented.
 ;
 ; All high-resolution renderers use ATM pages 5 and 1.
 ; The mode-switch trampoline is in the first 32-byte address-alias-safe
