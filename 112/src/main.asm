@@ -402,8 +402,9 @@ Print384YReady112:
         JP      PrintGlyphLineStored112
 
 PrintGlyph16Color112:
-        ; 16-color mode stores four 2-pixel color bytes per character scanline.
-        ; Plane bases are C000, 4000, E000 and 6000 (6144 bytes each).
+        ; Pentagon 16col: one byte encodes two adjacent pixels.
+        ; Each scanline has 128 bytes, split into four 32-byte banks.
+        ; A character is 8 pixels wide, therefore it occupies four bytes.
         LD      A,(Temp_Y112)
         ADD     A,A
         ADD     A,A
@@ -412,9 +413,38 @@ PrintGlyph16Color112:
         LD      A,(GlyphLine112)
         ADD     A,B
         LD      B,A
-        ; Each of the four 6144-byte planes uses the standard Spectrum
-        ; bitmap interleave: H=(Y&$C0)>>3 | (Y&7), L=(Y&$38)<<2 | X.
-        ; A linear Y*32 address makes the character rows appear scrambled.
+        LD      A,(Temp_FontByte112)
+        LD      (ColorShiftByte112),A
+        XOR     A
+        LD      (ColorPlaneIndex112),A
+ColorPairLoop112:
+        ; Extract the next two glyph pixels (left bit first).
+        LD      A,(ColorShiftByte112)
+        RLCA
+        RLCA
+        LD      (ColorShiftByte112),A
+        AND     3
+        LD      E,A
+        LD      D,0
+        LD      HL,ColorPairValues112
+        ADD     HL,DE
+        LD      A,(HL)
+        LD      (ColorByte112),A
+
+        ; Absolute byte X = character_column*4 + pair_index.
+        ; Select one of four horizontal 32-byte banks and local X.
+        LD      A,(Temp_X112)
+        ADD     A,A
+        ADD     A,A
+        LD      E,A
+        LD      A,(ColorPlaneIndex112)
+        ADD     A,E
+        LD      (ColorByteColumn112),A
+        LD      E,A
+        AND     31
+        LD      L,A
+
+        ; Spectrum bitmap interleave for scanline B, local byte X in L.
         LD      A,B
         AND     $C0
         RRCA
@@ -430,42 +460,29 @@ PrintGlyph16Color112:
         AND     $38
         RLCA
         RLCA
-        LD      L,A
-        LD      A,(Temp_X112)
         ADD     A,L
         LD      L,A
         JR      NC,ColorOffsetReady112
         INC     H
 ColorOffsetReady112:
-        LD      (ColorOffset112),HL
-        LD      A,(Temp_FontByte112)
-        LD      (ColorShiftByte112),A
-        XOR     A
-        LD      (ColorPlaneIndex112),A
-ColorPairLoop112:
-        LD      A,(ColorShiftByte112)
-        RLCA
-        RLCA
-        LD      (ColorShiftByte112),A
-        AND     3
-        LD      E,A
-        LD      D,0
-        LD      HL,ColorPairValues112
-        ADD     HL,DE
-        LD      A,(HL)
-        LD      (ColorByte112),A
-
-        LD      A,(ColorPlaneIndex112)
+        ; Bank number = absolute byte X / 32.
+        LD      A,(ColorByteColumn112)
+        SRL     A
+        SRL     A
+        SRL     A
+        SRL     A
+        SRL     A
         ADD     A,A
         LD      E,A
         LD      D,0
+        PUSH    HL
         LD      HL,ColorPlaneBases112
         ADD     HL,DE
         LD      E,(HL)
         INC     HL
         LD      D,(HL)
         EX      DE,HL
-        LD      DE,(ColorOffset112)
+        POP     DE
         ADD     HL,DE
         LD      A,(ColorByte112)
         LD      (HL),A
@@ -629,8 +646,10 @@ YSC384_112:
         AND     7
         LD      H,A
         XOR     C
-        ; YSC384 uses L=(Y & $F8) << 2. Two shifts are required;
-        ; four shifts multiply the scanline offset by 16 and scramble rows.
+        ; Canonical Pentagon XYSC384: L=(Y & $F8) << 4.
+        ; Four shifts are required for the 48-byte-wide 384x304 layout.
+        ADD     A,A
+        ADD     A,A
         ADD     A,A
         ADD     A,A
         LD      L,A
@@ -689,6 +708,7 @@ Demo_Column112:        DB 0
 Grid_Width112:         DB 32
 Grid_Height112:        DB 24
 ColorOffset112:        DW 0
+ColorByteColumn112:   DB 0
 ColorShiftByte112:    DB 0
 ColorPlaneIndex112:   DB 0
 ColorByte112:         DB 0
