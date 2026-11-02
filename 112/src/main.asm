@@ -370,9 +370,12 @@ ProgramEnd112:
 ; =========================================================================
         ORG     $B000
 CLEAR       EQU $FD
+LOAD        EQU $EF
+CODE        EQU $AF
 RANDOMIZE   EQU $F9
 USR         EQU $C0
-REM         EQU $EA
+VAL         EQU $B0
+OUT_CMD     EQU $DF
 
 basic_loader:
         ; Line 10: mark loader entry, then reserve BASIC memory.
