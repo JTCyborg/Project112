@@ -594,8 +594,8 @@ YSC384_112:
         AND     7
         LD      H,A
         XOR     C
-        ADD     A,A
-        ADD     A,A
+        ; YSC384 uses L=(Y & $F8) << 2. Two shifts are required;
+        ; four shifts multiply the scanline offset by 16 and scramble rows.
         ADD     A,A
         ADD     A,A
         LD      L,A
