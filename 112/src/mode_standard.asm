@@ -1,15 +1,14 @@
 ; =========================================================================
-; PROJECT112 — VIDEO MODE 0: STANDARD 256x192
-; Bitmap: Spectrum interleaved screen at $4000; attributes at $5800.
+; PROJECT112 — ATM MODE 0: SINCLAIR 256x192
+; Bitmap at $4000; attributes at $5800. Page 5 remains visible at $4000.
 ; =========================================================================
-
 ClearVideoMemory_Standard112:
-        LD      A,$10
+        LD      A,$11
         LD      BC,$7FFD
         OUT     (C),A
         LD      HL,$4000
         LD      DE,$4001
-        LD      BC,$3FFF
+        LD      BC,6911
         LD      (HL),0
         LDIR
         RET
