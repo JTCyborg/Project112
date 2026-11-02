@@ -25,27 +25,6 @@
 Project112Entry:
         JP      Init_Z80_System112
 
-ATM_ModeSwitch112:
-        ; Preserve the requested video mode across the pre-switch marker.
-        ; OUT ($FE),A changes the border before ATM address swapping begins.
-        LD      D,A
-        LD      A,1
-        OUT     ($FE),A
-        LD      A,D
-        LD      BC,$FD77
-        OUT     (C),A
-        JP      ATM_ModeReentry112
-
-ATM_ModeReentry112:
-        ; The post-switch marker is deliberately inside the same
-        ; 32-byte alias-safe region. Border index 10 and 'R' prove execution
-        ; continued after the ATM memory address-line swap.
-        LD      A,2
-        OUT     ($FE),A
-        LD      A,'R'
-        OUT     (#EF),A
-ATM_ModeTransitionHalt112:
-        JR      ATM_ModeTransitionHalt112
 
 ; -------------------------------------------------------------------------
 ; Initial setup.
@@ -61,26 +40,18 @@ Init_Z80_System112:
         LD      BC,$7FFD
         OUT     (C),A
 
-        XOR     A
+        ; BASIC selected ATM 640x200 (mode value 2) before loading this code.
+        LD      A,1
         LD      (Current_Mode_Index),A
         ; Always identify the exact source build in the #EF runtime log.
         LD      HL,Debug_BuildVersion112
         CALL    DebugPrintString112
         LD      HL,Debug_RuntimeStart112
         CALL    DebugPrintString112
-        JP      ApplyVideoMode
-
-; A stable trampoline jump is used instead of CALL/RET because the ATM
-; address bus changes during the write to #FF77.
-ApplyVideoMode:
-        LD      A,(Current_Mode_Index)
-        LD      L,A
-        LD      H,0
-        LD      DE,ATM_Mode_Bytes112
-        ADD     HL,DE
-        LD      A,(HL)
-        OR      $80
-        JP      ATM_ModeSwitch112
+        CALL    DrawDemoScreen
+        LD      HL,Debug_Ready112
+        CALL    DebugPrintString112
+        JP      MainLoop112
 
 ; -------------------------------------------------------------------------
 ; Debug output — UnrealSpeccy diagnostic port #EF.
@@ -379,11 +350,12 @@ ColorPlaneIndex112:    DB 0
 ColorByte112:          DB 0
 
 ; Bump this identifier whenever a test image/source revision changes.
-Debug_BuildVersion112: DEFM "P112 BUILD ATM710-DIAG-20261102.01",13,10,0
+Debug_BuildVersion112: DEFM "P112 BUILD ATM710-HIRES-20261102.02",13,10,0
 Debug_RuntimeStart112: DEFM "PROJECT112 ATM710 START",13,10,0
 Debug_ScreenDrawn112:  DEFM "ATM SCREEN DRAWN",13,10,0
 Debug_Ready112:        DEFM "ATM VIDEO TEST READY",13,10,0
 Debug_SpacePressed112: DEFM "SPACE: NEXT ATM MODE",13,10,0
+Debug_ModeApplied112:  DEFM "ATM MODE APPLIED",13,10,0
 
 Text_ModePrefix112:    DEFM "MODE: ",0
 
@@ -442,6 +414,9 @@ l20:
         DB      RANDOMIZE, USR, "15619", $0E, 0, 0
         DW      15619
         DB      0
+        ; Select ATM 640x200 BEFORE LOAD (port #FD77, value #82).
+        DB      $3A, OUT_CMD, " VAL ", VAL, 34, "64887", 34
+        DB      ",VAL ", VAL, 34, "130", 34
         DB      $3A, REM, $3A
         DB      "LOAD ", 34, "proj112", 34, " CODE 32768", $0D
 l20_len EQU     $-l20
