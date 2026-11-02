@@ -418,6 +418,9 @@
 
 ### Повторная проверка исходников UnrealSpeccy: пределы геометрии вывода (2026-11-02)
 
+Оригинальный листинг AlCo/Info Guide #07: https://zxpress.ru/ru/ezines/info-guide/07/programmirovanie-videorezhima-384x304-na-zx-spectrum-shemy-podklyucheniya-adresa-pamyati-procedury
+Исходники UnrealSpeccy: https://github.com/mkoloberdin/unrealspeccy (файлы `draw.cpp`, `draw_384.cpp`, `dx.cpp`).
+
 Проверены исходники upstream `mkoloberdin/unrealspeccy`:
 - `draw.cpp` — формирование таблиц `t.alco[304][8]` и адресных баз AlCo.
 - `draw_384.cpp` — фактическое чтение 384-режима и выбор ширины.
