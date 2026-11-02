@@ -62,10 +62,47 @@ Init_Z80_System112:
         CALL    DebugPrintString112
         LD      HL,Debug_RuntimeStart112
         CALL    DebugPrintString112
-        CALL    DrawDemoScreen
+        CALL    ATM640_MemoryPattern112
         LD      HL,Debug_Ready112
         CALL    DebugPrintString112
         JP      MainLoop112
+
+
+; -------------------------------------------------------------------------
+; ATM 640x200 raw memory diagnostic.
+; Writes deterministic full-screen patterns without font, glyph renderer,
+; per-character offsets or EGA conversion:
+;   page 5 even cells ($4000): $FF
+;   page 5 odd  cells ($6000): $00
+;   page 1 even attributes ($C000): $47
+;   page 1 odd  attributes ($E000): $47
+; Each plane is 8000 bytes (200 scanlines * 40 bytes).
+; -------------------------------------------------------------------------
+ATM640_MemoryPattern112:
+        LD      HL,$4000
+        LD      A,$FF
+        CALL    ATM640_FillPlane112
+        LD      HL,$6000
+        XOR     A
+        CALL    ATM640_FillPlane112
+        LD      HL,$C000
+        LD      A,$47
+        CALL    ATM640_FillPlane112
+        LD      HL,$E000
+        LD      A,$47
+        CALL    ATM640_FillPlane112
+        LD      HL,Debug_RawPattern112
+        JP      DebugPrintString112
+
+; HL=destination, A=fill byte. Fills exactly 8000 bytes.
+ATM640_FillPlane112:
+        LD      (HL),A
+        PUSH    HL
+        POP     DE
+        INC     DE
+        LD      BC,7999
+        LDIR
+        RET
 
 ; -------------------------------------------------------------------------
 ; Debug output — UnrealSpeccy diagnostic port #EF.
@@ -365,6 +402,7 @@ Debug_BuildVersion112: DEFM "P112 BUILD ATM710-NATIVE-20261102.03",13,10,0
 Debug_RuntimeStart112: DEFM "PROJECT112 ATM710 START",13,10,0
 Debug_ScreenDrawn112:  DEFM "ATM SCREEN DRAWN",13,10,0
 Debug_Ready112:        DEFM "ATM VIDEO TEST READY",13,10,0
+Debug_RawPattern112:    DEFM "ATM640 RAW MEMORY PATTERN",13,10,0
 Debug_SpacePressed112: DEFM "SPACE: NEXT ATM MODE",13,10,0
 Debug_ModeApplied112:  DEFM "ATM MODE APPLIED",13,10,0
 
