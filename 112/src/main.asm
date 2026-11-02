@@ -463,11 +463,8 @@ l20:
         DB      RANDOMIZE, USR, "15619", $0E, 0, 0
         DW      15619
         DB      0
-        ; Select ATM 640x200 BEFORE LOAD (port #FD77, value #C2).
-        DB      $3A, OUT_CMD, " VAL ", VAL, 34, "64887", 34
-        DB      ",VAL ", VAL, 34, "194", 34
-        DB      $3A, REM, $3A
-        DB      "LOAD ", 34, "proj112", 34, " CODE 32768", $0D
+        ; Load the executable without changing the video mode.
+        DB      $3A, LOAD, 34, "proj112", 34, " ", CODE, " 32768", $0D
 l20_len EQU     $-l20
 
         DB      0,30
@@ -479,5 +476,5 @@ l30:
 l30_len EQU     $-l30
 basic_loader_end:
 
-        SAVETRD "project112.TRD","proj112.B",basic_loader,basic_loader_end-basic_loader,10
+        SAVETRD "project112.TRD","boot.b",basic_loader,basic_loader_end-basic_loader,10
         SAVETRD "project112.TRD","proj112.C",$8000,ProgramEnd112-$8000
