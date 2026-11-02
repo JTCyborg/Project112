@@ -1,19 +1,17 @@
 ; =========================================================================
 ; PROJECT112 — ATM TURBO 2+ v7.10 VIDEO MODE CONTROL
-; #FD77 mode bits D2..D0:
-;   3 = Sinclair 256x192
-;   2 = ATM 640x200 hardware multicolor
-;   0 = ATM EGA 320x200x16
-;   6 = ATM 80x25 hardware text
-; D3=0 (3.5MHz), D4=0 reserved, D5=0, D6=0, D7=1 on v7.10.
-; The transition itself is the fixed safe trampoline at $8003 in main.asm; A9=0 keeps DOSEN enabled.
+; BASIC enters ATM 640x200 before loading the executable.
+; Space cycles through ATM modes 640x200, EGA 320x200 and 80x25.
+; All three modes have D0=0, so no RAM content permutation is triggered.
+; Sinclair mode (D0=1) is excluded until a ROM-mediated transition/reload
+; path is implemented.
 ; =========================================================================
 SwitchToNextVideoMode:
         LD      A,(Current_Mode_Index)
         INC     A
-        CP      Mode_Count
+        CP      4
         JR      C,ATMModeIndexReady112
-        XOR     A
+        LD      A,1
 ATMModeIndexReady112:
         LD      (Current_Mode_Index),A
         LD      L,A
@@ -22,9 +20,14 @@ ATMModeIndexReady112:
         ADD     HL,DE
         LD      A,(HL)
         OR      $80
-        JP      ATM_ModeSwitch112
+        LD      BC,$FD77
+        OUT     (C),A
+        LD      HL,Debug_ModeApplied112
+        CALL    DebugPrintString112
+        CALL    DrawDemoScreen
+        JP      MainLoop112
 
-Mode_Count             EQU 4
+Mode_Count             EQU 3
 ATM_Mode_Bytes112:
         DB      3
         DB      2
