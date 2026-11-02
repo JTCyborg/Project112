@@ -30,6 +30,12 @@ Init_Z80_System112:
         LD      (Saved_SP_112),SP
         LD      SP,$BFFF
 
+        ; Emit a marker before changing ATM video/address-bus mode.
+        LD      HL,Debug_BuildVersion112
+        CALL    DebugPrintString112
+        LD      HL,Debug_RuntimeStart112
+        CALL    DebugPrintString112
+
         ; Enable ATM shadow ports and select 640x200.
         ; A8=1 (PEN enabled), A9=0 (DOSEN/shadow ports enabled).
         ; D6=1 disables the 8031; D7=1 is the required VE0 idle level.
@@ -57,11 +63,6 @@ Init_Z80_System112:
         ; BASIC selected ATM 640x200 before loading this code.
         LD      A,1
         LD      (Current_Mode_Index),A
-        ; Always identify the exact source build in the #EF runtime log.
-        LD      HL,Debug_BuildVersion112
-        CALL    DebugPrintString112
-        LD      HL,Debug_RuntimeStart112
-        CALL    DebugPrintString112
         CALL    ATM640_MemoryPattern112
         LD      HL,Debug_Ready112
         CALL    DebugPrintString112
@@ -509,7 +510,7 @@ l21:
         DB      $0D
 l21_len EQU     $-l21
 
-        ; Line 30: mark program handoff, then execute at $8000.
+        ; Line 30: mark handoff, then execute at $8000.
         DB      0,30
         DW      l30_len
 l30:
@@ -518,11 +519,10 @@ l30:
         DB      ","
         DB      "2", $0E, $00, $00, $02, $00, $00
         DB      ":"
-        DB      RANDOMIZE, USR, "32768", $0E, $00, $00
-        DW      32768
+        DB      RANDOMIZE, USR, VAL, 34, "32768", 34
         DB      $0D
 l30_len EQU     $-l30
 basic_loader_end:
 
-        SAVETRD "project112.TRD","boot.b",basic_loader,basic_loader_end-basic_loader,10
+        SAVETRD "project112.TRD","boot.B",basic_loader,basic_loader_end-basic_loader,10
         SAVETRD "project112.TRD","proj112.C",$8000,ProgramEnd112-$8000
