@@ -371,18 +371,24 @@ PrintGlyph16Color112:
         LD      A,(GlyphLine112)
         ADD     A,B
         LD      B,A
+        ; Each of the four 6144-byte planes uses the standard Spectrum
+        ; bitmap interleave: H=(Y&$C0)>>3 | (Y&7), L=(Y&$38)<<2 | X.
+        ; A linear Y*32 address makes the character rows appear scrambled.
         LD      A,B
+        AND     $C0
         RRCA
         RRCA
         RRCA
-        AND     $1F
+        AND     $18
         LD      H,A
         LD      A,B
-        ADD     A,A
-        ADD     A,A
-        ADD     A,A
-        ADD     A,A
-        ADD     A,A
+        AND     7
+        OR      H
+        LD      H,A
+        LD      A,B
+        AND     $38
+        RLCA
+        RLCA
         LD      L,A
         LD      A,(Temp_X112)
         ADD     A,L
@@ -469,6 +475,19 @@ PrintGlyph512_112:
 PrintGlyphStore112:
         LD      A,(Temp_FontByte112)
         LD      (HL),A
+
+        ; HARDWARE MULTICOLOR uses two independent display files:
+        ; duplicate the bitmap byte into the second bitmap at $6000.
+        LD      A,(Current_Mode_Index)
+        CP      2
+        JR      NZ,PrintGlyphStoreDone112
+        PUSH    HL
+        LD      DE,$2000
+        ADD     HL,DE
+        LD      A,(Temp_FontByte112)
+        LD      (HL),A
+        POP     HL
+PrintGlyphStoreDone112:
         POP     HL
 PrintGlyphLineStored112:
         LD      A,(GlyphLine112)
@@ -507,25 +526,33 @@ AttrAddressReady112:
         LD      A,$47                 ; BRIGHT white ink, black paper
         LD      (HL),A
 
-        LD      A,(Current_Mode_Byte)
-        AND     $20
-        JR      Z,PrintCharDone112
-        LD      A,H
-        ADD     A,$08
-        LD      H,A
-        LD      A,$47                 ; BRIGHT white ink, black paper
+        ; HARDWARE MULTICOLOR has a second attribute file at $7800.
+        ; Do not write its attributes into the $6000 bitmap area.
+        LD      A,(Current_Mode_Index)
+        CP      2
+        JR      NZ,PrintCharDone112
+        PUSH    HL
+        LD      DE,$2000
+        ADD     HL,DE
+        LD      A,$47
         LD      (HL),A
+        POP     HL
 
         JR      PrintCharDone112
 
 Print384Attribute112:
         ; Attribute address is derived from the 384x304 bitmap address.
+        ; Build the full 16-bit scanline Y*8: rows 32..37 are 256..303
+        ; and must not wrap back to the top of the screen.
         LD      A,(Temp_Y112)
-        ADD     A,A
-        ADD     A,A
-        ADD     A,A
         LD      C,A
         LD      B,0
+        SLA     C
+        RL      B
+        SLA     C
+        RL      B
+        SLA     C
+        RL      B
         LD      A,(Temp_X112)
         LD      E,A
         CALL    XYSC384_112
