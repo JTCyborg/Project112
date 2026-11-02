@@ -2,7 +2,7 @@
 ; PROJECT112 — ATM TURBO 2+ v7.10 VIDEO MODE TEST
 ; Target: ATM710 / UnrealSpeccy
 ; Diagnostic build: Space tests the Sinclair -> ATM 640x200 transition.
-; The alias-safe trampoline marks border color 2, emits 'R' to #EF,
+; The alias-safe trampoline marks border indices 9 then 10, emits 'R' to #EF,
 ; then stops. Post-switch execution is deliberately disabled until
 ; the remapped code/data layout is implemented.
 ;
@@ -38,7 +38,7 @@ ATM_ModeSwitch112:
 
 ATM_ModeReentry112:
         ; The post-switch marker is deliberately inside the same
-        ; 32-byte alias-safe region. Border 2 and 'R' prove execution
+        ; 32-byte alias-safe region. Border index 10 and 'R' prove execution
         ; continued after the ATM memory address-line swap.
         LD      A,2
         OUT     ($FE),A
