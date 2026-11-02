@@ -48,9 +48,8 @@ ApplyVideoMode:
         JR      ModePageReady112
 
 .init_384_pages:
-        ; ИСПРАВЛЕНИЕ БАГА: Для Pentagon 384 вместо RAM 4 ($04) 
-        ; жестко включаем RAM 5 ($15) — именно её ожидает draw_384.cpp в UnrealSpeccy!
-        LD      A,$15
+        ; Pentagon 384x304 uses RAM page 4 at $C000 and fixed page 5 at $4000.
+        LD      A,$04
 
 ModePageReady112:
         LD      BC,$7FFD
