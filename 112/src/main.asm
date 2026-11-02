@@ -1,7 +1,7 @@
 ; =========================================================================
-; PROJECT112 — ATM TURBO 2+ v7.10 VIDEO MODE TEST
+; PROJECT112 — ZX SPECTRUM / ATM TURBO 2+ v7.10 VIDEO MODE TEST
 ; Target: ATM710 / UnrealSpeccy
-; Native ATM video test: Space cycles 640x200 -> EGA 320x200 -> 80x25.
+; Native ZX screen first; Space cycles ZX -> ATM 640x200 -> EGA -> 80x25 -> ZX.
 ; The ATM page dispatcher explicitly maps RAM page 5 into $4000 and page 1
 ; into $C000. Program code and stack remain in CPU window 2 ($8000-$BFFF).
 ; All display renderers follow the ATM2+ memory map document in the repo.
@@ -391,10 +391,10 @@ ColorByte112:          DB 0
 Debug_BuildVersion112: DEFM "P112 BUILD ATM710-ENTRY-20261103.01",13,10,0
 Debug_RuntimeStart112: DEFM "PROJECT112 ATM710 START",13,10,0
 Debug_ScreenDrawn112:  DEFM "ATM SCREEN DRAWN",13,10,0
-Debug_Ready112:        DEFM "ATM VIDEO TEST READY",13,10,0
+Debug_Ready112:        DEFM "VIDEO MODE TEST READY",13,10,0
 Debug_RawPattern112:    DEFM "ATM640 RAW MEMORY PATTERN",13,10,0
 Debug_SpacePressed112: DEFM "SPACE: NEXT ATM MODE",13,10,0
-Debug_ModeApplied112:  DEFM "ATM MODE APPLIED",13,10,0
+Debug_ModeApplied112:  DEFM "VIDEO MODE APPLIED",13,10,0
 
 Text_ModePrefix112:    DEFM "MODE: ",0
 
