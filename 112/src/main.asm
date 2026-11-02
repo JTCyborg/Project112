@@ -13,7 +13,9 @@
 Init_Z80_System112:
         DI
         LD      (Saved_SP_112),SP
-        LD      SP,$7FFF
+        ; Keep the stack outside $4000-$7FFF: ClearVideoMemory112
+        ; clears the entire screen bank and must never overwrite return addresses.
+        LD      SP,$BFFF
 
         ; Map Pentagon screen page 5 at $4000-$7FFF.
         LD      A,$10
@@ -22,8 +24,12 @@ Init_Z80_System112:
 
         XOR     A
         LD      (Current_Mode_Index),A
+        LD      HL,Debug_RuntimeStart112
+        CALL    DebugPrintString112
         CALL    ApplyVideoMode
         CALL    DrawDemoScreen
+        LD      HL,Debug_Ready112
+        CALL    DebugPrintString112
 
 MainLoop112:
         ; Space is bit 4 of the $7FFE keyboard half-row (active low).
@@ -40,6 +46,8 @@ WaitSpaceRelease112:
         IN      A,(C)
         BIT     4,A
         JR      Z,WaitSpaceRelease112
+        LD      HL,Debug_SpacePressed112
+        CALL    DebugPrintString112
         CALL    SwitchToNextVideoMode
         JR      MainLoop112
 
@@ -56,6 +64,8 @@ ModeIndexReady112:
         RET
 
 ApplyVideoMode:
+        LD      HL,Debug_ModeApply112
+        CALL    DebugPrintString112
         LD      A,(Current_Mode_Index)
         LD      L,A
         LD      H,0
@@ -73,6 +83,25 @@ ApplyVideoMode:
         ADD     HL,DE
         LD      A,(HL)
         OUT     ($FE),A
+        RET
+
+; -------------------------------------------------------------------------
+; Debug output — UnrealSpeccy diagnostic port #EF.
+; HL points to a zero-terminated string. AF and HL are preserved.
+; -------------------------------------------------------------------------
+DebugPrintString112:
+        PUSH    AF
+        PUSH    HL
+DebugPrintLoop112:
+        LD      A,(HL)
+        OR      A
+        JR      Z,DebugPrintDone112
+        OUT     (#EF),A
+        INC     HL
+        JR      DebugPrintLoop112
+DebugPrintDone112:
+        POP     HL
+        POP     AF
         RET
 
 ; Clear the full 16K screen window in RAM page 5. This also clears
@@ -157,6 +186,8 @@ DemoColumnLoop112:
         LD      (Demo_Row112),A
         CP      6
         JR      NZ,DemoRowLoop112
+        LD      HL,Debug_ScreenDrawn112
+        CALL    DebugPrintString112
         RET
 
 ; Print zero-terminated string at C=character column, D=character row.
@@ -292,6 +323,12 @@ Demo_Character112:     DB 32
 Demo_Row112:           DB 0
 Demo_Column112:        DB 0
 
+Debug_RuntimeStart112: DEFM "P112 RUNNING",13,10,0
+Debug_ModeApply112:    DEFM "VIDEO MODE APPLY",13,10,0
+Debug_ScreenDrawn112:  DEFM "SCREEN DRAWN",13,10,0
+Debug_Ready112:        DEFM "VIDEO TEST READY",13,10,0
+Debug_SpacePressed112: DEFM "SPACE PRESSED",13,10,0
+
 Text_Title112:         DEFM "PROJECT112 VIDEO MODE TEST",0
 Text_Space112:         DEFM "PRESS SPACE TO CHANGE MODE",0
 Text_Mode112:          DEFM "ACTIVE #EFF7 MODE:",0
@@ -329,40 +366,96 @@ Font88_112:
 ProgramEnd112:
 
 ; =========================================================================
+; =========================================================================
 ; TR-DOS BASIC loader
 ; =========================================================================
         ORG     $B000
 CLEAR       EQU $FD
+LOAD        EQU $EF
+CODE        EQU $AF
+REM         EQU $EA
 RANDOMIZE   EQU $F9
 USR         EQU $C0
-REM         EQU $EA
+OUT_CMD     EQU $DF
 
 basic_loader:
-        DB      0,10
+        ; Line 5: P112 START diagnostic message on port #EF.
+        DB      0, 5
+        DW      l5_len
+l5:
+        DB      OUT_CMD, "239", ",", "80", ":"
+        DB      OUT_CMD, "239", ",", "49", ":"
+        DB      OUT_CMD, "239", ",", "49", ":"
+        DB      OUT_CMD, "239", ",", "50", ":"
+        DB      OUT_CMD, "239", ",", "32", ":"
+        DB      OUT_CMD, "239", ",", "83", ":"
+        DB      OUT_CMD, "239", ",", "84", ":"
+        DB      OUT_CMD, "239", ",", "65", ":"
+        DB      OUT_CMD, "239", ",", "82", ":"
+        DB      OUT_CMD, "239", ",", "84", ":"
+        DB      OUT_CMD, "239", ",", "13", ":"
+        DB      OUT_CMD, "239", ",", "10", $0D
+l5_len EQU     $-l5
+
+        ; Original line 10 is deliberately preserved unchanged.
+        DB      0, 10
         DW      l10_len
 l10:
-        DB      CLEAR,"32767",$0E,0,0
+        DB      CLEAR, "32767", $0E, 0, 0
         DW      32767
-        DB      0,$0D
-l10_len EQU $-l10
+        DB      0, $0D
+l10_len EQU     $-l10
 
-        DB      0,20
+        ; Line 15: CLEAR completed.
+        DB      0, 15
+        DW      l15_len
+l15:
+        DB      OUT_CMD, "239", ",", "67", ":"
+        DB      OUT_CMD, "239", ",", "76", ":"
+        DB      OUT_CMD, "239", ",", "69", ":"
+        DB      OUT_CMD, "239", ",", "65", ":"
+        DB      OUT_CMD, "239", ",", "82", ":"
+        DB      OUT_CMD, "239", ",", "32", ":"
+        DB      OUT_CMD, "239", ",", "79", ":"
+        DB      OUT_CMD, "239", ",", "75", ":"
+        DB      OUT_CMD, "239", ",", "13", ":"
+        DB      OUT_CMD, "239", ",", "10", $0D
+l15_len EQU     $-l15
+
+        ; Original line 20: TR-DOS initialization and file loading.
+        DB      0, 20
         DW      l20_len
 l20:
-        DB      RANDOMIZE,USR,"15619",$0E,0,0
+        DB      RANDOMIZE, USR, "15619", $0E, 0, 0
         DW      15619
         DB      0
-        DB      $3A,REM,$3A
-        DB      "LOAD ",34,"proj112",34," CODE 32768",$0D
-l20_len EQU $-l20
+        DB      $3A, REM, $3A
+        DB      "LOAD ", 34, "proj112", 34, " CODE 32768", $0D
+l20_len EQU     $-l20
 
-        DB      0,30
+        ; Line 25: LOAD completed.
+        DB      0, 25
+        DW      l25_len
+l25:
+        DB      OUT_CMD, "239", ",", "76", ":"
+        DB      OUT_CMD, "239", ",", "79", ":"
+        DB      OUT_CMD, "239", ",", "65", ":"
+        DB      OUT_CMD, "239", ",", "68", ":"
+        DB      OUT_CMD, "239", ",", "69", ":"
+        DB      OUT_CMD, "239", ",", "68", ":"
+        DB      OUT_CMD, "239", ",", "13", ":"
+        DB      OUT_CMD, "239", ",", "10", $0D
+l25_len EQU     $-l25
+
+        ; Line 30: phase marker, then original machine-code entry.
+        DB      0, 30
         DW      l30_len
 l30:
-        DB      RANDOMIZE,USR,"32768",$0E,0,0
+        DB      OUT_CMD, "239", ",", "2", $3A
+        DB      RANDOMIZE, USR, "32768", $0E, 0, 0
         DW      32768
-        DB      0,$0D
-l30_len EQU $-l30
+        DB      0, $0D
+l30_len EQU     $-l30
 basic_loader_end:
 
         SAVETRD "project112.TRD","proj112.B",basic_loader,basic_loader_end-basic_loader,10
