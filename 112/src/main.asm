@@ -439,7 +439,7 @@ ProgramEnd112:
 ; TR-DOS BASIC loader
 ; =========================================================================
         ORG     $B000
-CLEAR       EQU $FC
+CLEAR       EQU $FD
 LOAD        EQU $EF
 CODE        EQU $AF
 REM         EQU $EA
@@ -454,9 +454,9 @@ basic_loader:
         DW      l10_len
 l10:
         DB      OUT_CMD
-        DB      "239", $0E, $00, $00, $00, $EF, $00
+        DB      "239", $0E, $00, $00, $EF, $00, $00
         DB      ","
-        DB      "1", $0E, $00, $00, $00, $01, $00
+        DB      "1", $0E, $00, $00, $01, $00, $00
         DB      ":"
         DB      CLEAR, "32767", $0E, $00, $00, $7F, $FF, $00
         DB      $0D
