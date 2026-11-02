@@ -439,7 +439,7 @@ ProgramEnd112:
 ; TR-DOS BASIC loader
 ; =========================================================================
         ORG     $B000
-CLEAR       EQU $FD
+CLEAR       EQU $FC
 LOAD        EQU $EF
 CODE        EQU $AF
 REM         EQU $EA
