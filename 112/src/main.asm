@@ -77,6 +77,15 @@ ApplyVideoMode:
         OUT     (C),A
 
         LD      A,(Current_Mode_Index)
+        CP      4
+        LD      A,$10
+        JR      NZ,ModePageReady112
+        LD      A,$04
+ModePageReady112:
+        LD      BC,$7FFD
+        OUT     (C),A
+
+        LD      A,(Current_Mode_Index)
         LD      L,A
         LD      H,0
         LD      DE,Mode_Border_Colors
@@ -107,7 +116,12 @@ DebugPrintDone112:
 ; Clear the full 16K screen window in RAM page 5. This also clears
 ; the secondary $6000-$77FF plane used by 512x192 / A4B-style modes.
 ClearVideoMemory112:
+        LD      A,(Current_Mode_Index)
+        CP      4
         LD      A,$10
+        JR      NZ,ClearPageSelect112
+        LD      A,$04
+ClearPageSelect112:
         LD      BC,$7FFD
         OUT     (C),A
         LD      HL,$4000
@@ -115,10 +129,25 @@ ClearVideoMemory112:
         LD      BC,$3FFF
         LD      (HL),0
         LDIR
+
+        LD      A,(Current_Mode_Index)
+        CP      4
+        JR      Z,Clear384UpperBank112
+        CP      3
+        JR      Z,Clear16ColorPlanes112
         RET
 
-; Clear the two additional 16-color planes in fixed RAM bank 2.
+Clear384UpperBank112:
+        ; 384x304 uses RAM page 4 at C000-FFFF and page 5 at 4000-7FFF.
+        LD      HL,$C000
+        LD      DE,$C001
+        LD      BC,$3FFF
+        LD      (HL),0
+        LDIR
+        RET
+
 Clear16ColorPlanes112:
+        ; 16-color uses the two 6144-byte regions in fixed RAM bank 2.
         LD      HL,$C000
         LD      DE,$C001
         LD      BC,$17FF
@@ -133,23 +162,30 @@ Clear16ColorPlanes112:
 
 DrawDemoScreen:
         CALL    ClearVideoMemory112
-        LD      A,(Current_Mode_Index)
-        CP      3
-        CALL    Z,Clear16ColorPlanes112
 
         ; Select the actual character grid for the active video mode.
         LD      A,(Current_Mode_Index)
         CP      1
-        JR      NZ,GridWidth32_112
-        LD      A,64
-        LD      (Grid_Width112),A
-        JR      GridGeometryReady112
-GridWidth32_112:
+        JR      Z,GridWidth64_112
+        CP      4
+        JR      Z,GridGeometry384_112
         LD      A,32
         LD      (Grid_Width112),A
-GridGeometryReady112:
         LD      A,24
         LD      (Grid_Height112),A
+        JR      GridGeometryReady112
+GridWidth64_112:
+        LD      A,64
+        LD      (Grid_Width112),A
+        LD      A,24
+        LD      (Grid_Height112),A
+        JR      GridGeometryReady112
+GridGeometry384_112:
+        LD      A,48
+        LD      (Grid_Width112),A
+        LD      A,38
+        LD      (Grid_Height112),A
+GridGeometryReady112:
 
         ; Draw every cell. The final row and column are explicit rulers.
         LD      A,32
@@ -270,6 +306,8 @@ GlyphLineLoop112:
         PUSH    HL
         ; Recalculate destination for the selected bitmap organization.
         LD      A,(Current_Mode_Index)
+        CP      4
+        JR      Z,PrintGlyph384_112
         CP      3
         JR      Z,PrintGlyph16Color112
         CP      1
@@ -295,6 +333,32 @@ GlyphLineLoop112:
         OR      L
         LD      L,A
         JR      PrintGlyphStore112
+
+PrintGlyph384_112:
+        ; Canonical 384x304 XYSC384 mapping. Y is a 0..303 scanline,
+        ; E is the 0..47 byte column; page 4 must be mapped at C000.
+        LD      A,(Temp_Y112)
+        LD      C,A
+        LD      B,0
+        SLA     C
+        RL      B
+        SLA     C
+        RL      B
+        SLA     C
+        RL      B
+        LD      A,(GlyphLine112)
+        ADD     A,C
+        LD      C,A
+        JR      NC,Print384YReady112
+        INC     B
+Print384YReady112:
+        LD      A,(Temp_X112)
+        LD      E,A
+        CALL    XYSC384_112
+        LD      A,(Temp_FontByte112)
+        LD      (HL),A
+        POP     HL
+        JR      PrintGlyphLineStored112
 
 PrintGlyph16Color112:
         ; 16-color mode stores four 2-pixel color bytes per character scanline.
@@ -419,6 +483,8 @@ PrintGlyphLineStored112:
         JR      Z,PrintCharDone112
         CP      3
         JR      Z,PrintCharDone112
+        CP      4
+        JR      Z,Print384Attribute112
 
         ; Character attribute: bright white ink on black paper for every glyph.
         ; Standard mode uses $5800; hardware multicolor uses its $6000 plane.
@@ -450,10 +516,97 @@ AttrAddressReady112:
         LD      A,$47                 ; BRIGHT white ink, black paper
         LD      (HL),A
 
+        JR      PrintCharDone112
+
+Print384Attribute112:
+        ; Attribute address is derived from the 384x304 bitmap address.
+        LD      A,(Temp_Y112)
+        ADD     A,A
+        ADD     A,A
+        ADD     A,A
+        LD      C,A
+        LD      B,0
+        LD      A,(Temp_X112)
+        LD      E,A
+        CALL    XYSC384_112
+        CALL    SA384_112
+        LD      A,$47
+        LD      (HL),A
+
 PrintCharDone112:
         POP     HL
         POP     DE
         POP     BC
+        RET
+
+; -------------------------------------------------------------------------
+; Pentagon 384x304 address helpers, transcribed from Video/ig7m384p (1).htm.
+; XYSC input: BC=scanline 0..303, E=byte column 0..47; output HL=bitmap byte.
+; SA input/output: HL bitmap address -> corresponding attribute address.
+; -------------------------------------------------------------------------
+XYSC384_112:
+        CALL    YSC384_112
+        LD      A,E
+        SUB     8
+        JR      C,XS384Left112
+        CP      32
+        JR      C,XS384Middle112
+        SUB     32+$18
+XS384Left112:
+        ADD     A,8+$18
+        JR      XS384Add112
+XS384Middle112:
+        SET     5,H
+XS384Add112:
+        ADD     A,L
+        LD      L,A
+        RET
+
+YSC384_112:
+        LD      A,C
+        AND     7
+        LD      H,A
+        XOR     C
+        ADD     A,A
+        ADD     A,A
+        ADD     A,A
+        ADD     A,A
+        LD      L,A
+        LD      A,$D8
+        INC     B
+        DJNZ    YSC384Low112
+        LD      A,C
+        AND     $C0
+        RRCA
+        RRCA
+        RRCA
+        JR      NZ,YSC384NoWrap112
+        LD      A,$C0-$38
+        ADD     A,$38
+        JR      YSC384Low112
+YSC384NoWrap112:
+        ADD     A,H
+        LD      H,A
+        RET
+YSC384Low112:
+        ADD     A,H
+        LD      H,A
+        RET
+
+SA384_112:
+        LD      A,H
+        AND     $D8
+        JP      P,SA384Positive112
+        ADD     A,$86-$C0-$C2+$40
+SA384Positive112:
+        ADD     A,$C2-$40
+        RRCA
+        RRCA
+        RRCA
+        XOR     H
+        AND     $DF
+        XOR     H
+        LD      H,A
         RET
 
 ; -------------------------------------------------------------------------
