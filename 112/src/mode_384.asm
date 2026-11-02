@@ -21,7 +21,9 @@ ClearVideoMemory_384112:
         LD      BC,$3FFF
         LD      (HL),0
         LDIR
-        LD      A,$10
+        ; Keep RAM page 4 mapped at $C000: XYSC384 may address both
+        ; $4000 and $C000 screen regions during subsequent glyph writes.
+        LD      A,$04
         LD      BC,$7FFD
         OUT     (C),A
         RET
