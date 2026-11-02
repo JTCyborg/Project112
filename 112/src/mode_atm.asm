@@ -64,7 +64,7 @@ ATM640AttrBaseReady112:
 ; ATM EGA 320x200x16.
 ; One character cell is 8 pixels = four two-pixel bytes.
 ; Each scanline has 160 pair bytes, distributed across four 8K regions.
-; CPU address offset within each region is row*40 + cell_column*4.
+; CPU address offset within each region is row*40 + cell_column.
 ;
 ; Pair order across regions:
 ;   0: page 1, first half ($C000)
@@ -74,9 +74,9 @@ ATM640AttrBaseReady112:
 ; -------------------------------------------------------------------------
 RenderGlyph_ATMEGA112:
         CALL    ATM_CalcEGARowOffset112
+        ; One character cell contributes one byte to each EGA region.
+        ; The per-region column stride is therefore X, not X*4.
         LD      A,(Temp_X112)
-        ADD     A,A
-        ADD     A,A
         LD      E,A
         LD      D,0
         LD      HL,(ATM_Offset112)
