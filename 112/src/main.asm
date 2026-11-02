@@ -32,10 +32,10 @@ Init_Z80_System112:
         CALL    DebugPrintString112
 
 MainLoop112:
-        ; Space is bit 4 of the $7FFE keyboard half-row (active low).
+        ; Space is bit 0 of keyboard row $7FFE (active low).
         LD      BC,$7FFE
         IN      A,(C)
-        BIT     4,A
+        BIT     0,A
         JR      Z,SpacePressed112
 
         ; Space advances one mode after key release.
@@ -44,7 +44,7 @@ MainLoop112:
 SpacePressed112:
 WaitSpaceRelease112:
         IN      A,(C)
-        BIT     4,A
+        BIT     0,A
         JR      Z,WaitSpaceRelease112
         LD      HL,Debug_SpacePressed112
         CALL    DebugPrintString112
@@ -266,7 +266,7 @@ GlyphLineLoop112:
         CP      8
         JR      NZ,GlyphLineLoop112
 
-        ; Character attribute: bright ink, black paper, color varies by glyph.
+        ; Character attribute: bright white ink on black paper for every glyph.
         ; Standard mode uses $5800; hardware multicolor uses its $6000 plane.
         LD      A,(Temp_Y112)
         LD      L,A
@@ -284,9 +284,7 @@ GlyphLineLoop112:
         JR      NC,AttrAddressReady112
         INC     H
 AttrAddressReady112:
-        LD      A,(Temp_Character112)
-        AND     7
-        OR      $40
+        LD      A,$47                 ; BRIGHT white ink, black paper
         LD      (HL),A
 
         LD      A,(Current_Mode_Byte)
@@ -295,9 +293,7 @@ AttrAddressReady112:
         LD      A,H
         ADD     A,$08
         LD      H,A
-        LD      A,(Temp_Character112)
-        AND     7
-        OR      $40
+        LD      A,$47                 ; BRIGHT white ink, black paper
         LD      (HL),A
 
 PrintCharDone112:
