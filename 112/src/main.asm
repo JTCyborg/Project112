@@ -332,7 +332,7 @@ GlyphLineLoop112:
         LD      A,(Temp_X112)
         OR      L
         LD      L,A
-        JR      PrintGlyphStore112
+        JP      PrintGlyphStore112
 
 PrintGlyph384_112:
         ; Canonical 384x304 XYSC384 mapping. Y is a 0..303 scanline,
@@ -358,7 +358,7 @@ Print384YReady112:
         LD      A,(Temp_FontByte112)
         LD      (HL),A
         POP     HL
-        JR      PrintGlyphLineStored112
+        JP      PrintGlyphLineStored112
 
 PrintGlyph16Color112:
         ; 16-color mode stores four 2-pixel color bytes per character scanline.
