@@ -32,10 +32,10 @@ Init_Z80_System112:
         CALL    DebugPrintString112
 
 MainLoop112:
-        ; Space is bit 4 of the $7FFE keyboard half-row (active low).
-        LD      BC,$7FFE
+        ; Space is bit 0 of the $FFFE keyboard half-row (active low).
+        LD      BC,$FFFE
         IN      A,(C)
-        BIT     4,A
+        BIT     0,A
         JR      Z,SpacePressed112
 
         ; Space advances one mode after key release.
@@ -44,7 +44,7 @@ MainLoop112:
 SpacePressed112:
 WaitSpaceRelease112:
         IN      A,(C)
-        BIT     4,A
+        BIT     0,A
         JR      Z,WaitSpaceRelease112
         LD      HL,Debug_SpacePressed112
         CALL    DebugPrintString112
