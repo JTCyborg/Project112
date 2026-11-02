@@ -30,6 +30,7 @@ Init_Z80_System112:
         CALL    DrawDemoScreen
         LD      HL,Debug_Ready112
         CALL    DebugPrintString112
+        JP      MainLoop112
 
 
 
