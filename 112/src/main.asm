@@ -378,23 +378,24 @@ RANDOMIZE   EQU $F9
 USR         EQU $C0
 OUT_CMD     EQU $DF
 
+VAL         EQU $B0
 basic_loader:
         ; Line 5: P112 START diagnostic message on port #EF.
         DB      0, 5
         DW      l5_len
 l5:
-        DB      OUT_CMD, "239", ",", "80", ":"
-        DB      OUT_CMD, "239", ",", "49", ":"
-        DB      OUT_CMD, "239", ",", "49", ":"
-        DB      OUT_CMD, "239", ",", "50", ":"
-        DB      OUT_CMD, "239", ",", "32", ":"
-        DB      OUT_CMD, "239", ",", "83", ":"
-        DB      OUT_CMD, "239", ",", "84", ":"
-        DB      OUT_CMD, "239", ",", "65", ":"
-        DB      OUT_CMD, "239", ",", "82", ":"
-        DB      OUT_CMD, "239", ",", "84", ":"
-        DB      OUT_CMD, "239", ",", "13", ":"
-        DB      OUT_CMD, "239", ",", "10", $0D
+        DB      OUT_CMD, VAL, '"239"', ",", VAL, '"80', ":"
+        DB      OUT_CMD, VAL, '"239"', ",", VAL, '"49', ":"
+        DB      OUT_CMD, VAL, '"239"', ",", VAL, '"49', ":"
+        DB      OUT_CMD, VAL, '"239"', ",", VAL, '"50', ":"
+        DB      OUT_CMD, VAL, '"239"', ",", VAL, '"32', ":"
+        DB      OUT_CMD, VAL, '"239"', ",", VAL, '"83', ":"
+        DB      OUT_CMD, VAL, '"239"', ",", VAL, '"84', ":"
+        DB      OUT_CMD, VAL, '"239"', ",", VAL, '"65', ":"
+        DB      OUT_CMD, VAL, '"239"', ",", VAL, '"82', ":"
+        DB      OUT_CMD, VAL, '"239"', ",", VAL, '"84', ":"
+        DB      OUT_CMD, VAL, '"239"', ",", VAL, '"13', ":"
+        DB      OUT_CMD, VAL, '"239"', ",", VAL, '"10', $0D
 l5_len EQU     $-l5
 
         ; Original line 10 is deliberately preserved unchanged.
@@ -410,16 +411,16 @@ l10_len EQU     $-l10
         DB      0, 15
         DW      l15_len
 l15:
-        DB      OUT_CMD, "239", ",", "67", ":"
-        DB      OUT_CMD, "239", ",", "76", ":"
-        DB      OUT_CMD, "239", ",", "69", ":"
-        DB      OUT_CMD, "239", ",", "65", ":"
-        DB      OUT_CMD, "239", ",", "82", ":"
-        DB      OUT_CMD, "239", ",", "32", ":"
-        DB      OUT_CMD, "239", ",", "79", ":"
-        DB      OUT_CMD, "239", ",", "75", ":"
-        DB      OUT_CMD, "239", ",", "13", ":"
-        DB      OUT_CMD, "239", ",", "10", $0D
+        DB      OUT_CMD, VAL, '"239"', ",", VAL, '"67', ":"
+        DB      OUT_CMD, VAL, '"239"', ",", VAL, '"76', ":"
+        DB      OUT_CMD, VAL, '"239"', ",", VAL, '"69', ":"
+        DB      OUT_CMD, VAL, '"239"', ",", VAL, '"65', ":"
+        DB      OUT_CMD, VAL, '"239"', ",", VAL, '"82', ":"
+        DB      OUT_CMD, VAL, '"239"', ",", VAL, '"32', ":"
+        DB      OUT_CMD, VAL, '"239"', ",", VAL, '"79', ":"
+        DB      OUT_CMD, VAL, '"239"', ",", VAL, '"75', ":"
+        DB      OUT_CMD, VAL, '"239"', ",", VAL, '"13', ":"
+        DB      OUT_CMD, VAL, '"239"', ",", VAL, '"10', $0D
 l15_len EQU     $-l15
 
         ; Original line 20: TR-DOS initialization and file loading.
@@ -437,21 +438,21 @@ l20_len EQU     $-l20
         DB      0, 25
         DW      l25_len
 l25:
-        DB      OUT_CMD, "239", ",", "76", ":"
-        DB      OUT_CMD, "239", ",", "79", ":"
-        DB      OUT_CMD, "239", ",", "65", ":"
-        DB      OUT_CMD, "239", ",", "68", ":"
-        DB      OUT_CMD, "239", ",", "69", ":"
-        DB      OUT_CMD, "239", ",", "68", ":"
-        DB      OUT_CMD, "239", ",", "13", ":"
-        DB      OUT_CMD, "239", ",", "10", $0D
+        DB      OUT_CMD, VAL, '"239"', ",", VAL, '"76', ":"
+        DB      OUT_CMD, VAL, '"239"', ",", VAL, '"79', ":"
+        DB      OUT_CMD, VAL, '"239"', ",", VAL, '"65', ":"
+        DB      OUT_CMD, VAL, '"239"', ",", VAL, '"68', ":"
+        DB      OUT_CMD, VAL, '"239"', ",", VAL, '"69', ":"
+        DB      OUT_CMD, VAL, '"239"', ",", VAL, '"68', ":"
+        DB      OUT_CMD, VAL, '"239"', ",", VAL, '"13', ":"
+        DB      OUT_CMD, VAL, '"239"', ",", VAL, '"10', $0D
 l25_len EQU     $-l25
 
         ; Line 30: phase marker, then original machine-code entry.
         DB      0, 30
         DW      l30_len
 l30:
-        DB      OUT_CMD, "239", ",", "2", $3A
+        DB      OUT_CMD, VAL, '"239"', ",", VAL, '"2', $3A
         DB      RANDOMIZE, USR, "32768", $0E, 0, 0
         DW      32768
         DB      0, $0D
