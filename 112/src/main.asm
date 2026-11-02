@@ -520,6 +520,9 @@ l21_len EQU     $-l21
         DB      0,30
         DW      l30_len
 l30:
+        ; Printable handoff marker: if this is absent, BASIC never reached
+        ; the USR expression below. Keep it distinct from binary phase 2.
+        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "62", 34, ":"
         DB      OUT_CMD
         DB      "239", $0E, $00, $00, $EF, $00, $00
         DB      ","
