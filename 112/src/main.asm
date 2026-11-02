@@ -323,6 +323,11 @@ PrintGlyphStore112:
         CP      8
         JR      NZ,GlyphLineLoop112
 
+        ; 512x192 is monochrome: it has no Spectrum attribute plane.
+        LD      A,(Current_Mode_Index)
+        CP      1
+        JR      Z,PrintCharDone112
+
         ; Character attribute: bright white ink on black paper for every glyph.
         ; Standard mode uses $5800; hardware multicolor uses its $6000 plane.
         LD      A,(Temp_Y112)
