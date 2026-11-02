@@ -37,6 +37,12 @@ Init_Z80_System112:
         LD      BC,$FD77
         OUT     (C),A
 
+        ; Select memory map 0 and visible screen page 5 (7FFD D3=0).
+        ; The ATM dispatcher entries below then define the actual RAM pages.
+        XOR     A
+        LD      BC,$7FFD
+        OUT     (C),A
+
         ; Map physical video RAM pages through the ATM page dispatcher.
         ; Page 5 -> CPU window $4000-$7FFF; page 1 -> $C000-$FFFF.
         ; D0-D5 are inverted page number, D6=1 selects RAM, D7=0
