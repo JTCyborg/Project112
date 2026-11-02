@@ -63,6 +63,15 @@ RenderGlyph_16Color112:
         LD      A,(Temp_X112)
         OR      L
         LD      L,A
+
+        ; The bitmap formula above produces an absolute Spectrum address
+        ; in $4000-$57FF. The four 16col planes need a page-relative
+        ; offset in $0000-$17FF before adding their own base address.
+        ; Without this subtraction, plane writes land at $8000/$A000
+        ; and wraparound addresses, overwriting the running program.
+        LD      A,H
+        SUB     $40
+        LD      H,A
         LD      (ColorOffset112),HL
 
         ; Four successive regions supply the four 2-pixel pairs
