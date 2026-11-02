@@ -13,7 +13,9 @@
 Init_Z80_System112:
         DI
         LD      (Saved_SP_112),SP
-        LD      SP,$7FFF
+        ; Keep the stack outside $4000-$7FFF: ClearVideoMemory112
+        ; clears the entire screen bank and must never overwrite return addresses.
+        LD      SP,$BFFF
 
         ; Map Pentagon screen page 5 at $4000-$7FFF.
         LD      A,$10
