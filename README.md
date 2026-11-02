@@ -1,44 +1,49 @@
-# Project112 — ATM Turbo 2+ video-mode demonstrator
+# Project112 — ATM Turbo 2+ v7.10 video test
 
-Target: ATM Turbo 2+ v7.10 / UnrealSpeccy.
+Цель проекта — проверка трёх нативных видеорежимов ATM Turbo 2+ v7.10 в UnrealSpeccy с полноэкранной тестовой сеткой символов и переключением клавишей Space.
 
-## Build
+## Активные режимы
 
-Run `build.bat` from the `112` directory. It assembles `src/main.asm` and creates:
-- `project112.TRD`
-- `list.txt` — SjASMPlus listing
-- `map.txt` — symbol map
+1. ATM 640×200 hardware multicolor (RG=2).
+2. ATM EGA 320×200×16 (RG=0).
+3. ATM hardware text 80×25 (RG=6).
 
-## Keyboard
+Space переключает режимы по кругу. Режим Sinclair и старые экспериментальные режимы не входят в текущий цикл.
 
-Press Space to cycle through three ATM-native modes:
-1. ATM 640x200 hardware multicolor.
-2. ATM 320x200 EGA-style 16-color.
-3. ATM 80x25 hardware text.
+## Сборка
 
-Sinclair 256x192 is temporarily excluded from the runtime cycle. Its D0=1 transition triggers the ATM RAM content permutation, so it needs a separate ROM-mediated transition/reload path.
+Из каталога `112` запустить:
 
-## Startup and memory-swap handling
+```bat
+build.bat
+```
 
-The TR-DOS BASIC loader is stored as `boot.b`. It does not change the video mode; it only loads `proj112.C` at address `$8000` and starts it. Video-mode initialization is owned by the program.
+Скрипт использует `112/tools/sjasmplus.exe` и собирает `112/project112.TRD`, `112/list.txt` и `112/map.txt`.
 
-The three active ATM modes use values 2, 0 and 6; D0 remains zero while cycling, so the executable and its data remain in place.
+На TRD должны находиться:
+- `boot.B` — BASIC-загрузчик;
+- `proj112.C` — машинный код, загружаемый по адресу `$8000`.
 
-## Memory layouts
+BASIC-загрузчик заканчивается обязательным маркером `$80`. Программа после настройки ATM видеопамяти вызывает `DrawDemoScreen`; диагностическая заливка `ATM640_MemoryPattern112` не используется как стартовый экран.
 
-- ATM 640x200: page 5 bitmap, page 1 attributes; even/odd columns use separate 8K halves.
-- ATM EGA 320x200x16: four layers at $C000, $4000, $E000 and $6000.
-- ATM 80x25: character codes in page 5, attributes in page 1.
+## Конфигурация UnrealSpeccy
 
-## Validation status
+Корневой `unreal.ini` настроен на:
+- `HIMEM=ATM710`;
+- `RAMSize=1024`;
+- `AtmMemSwap=1`;
+- `EFF7mask=0`;
+- `UsePalette=1`;
+- `ROMSET=ATM2`.
 
-Build and runtime validation must be performed with the current `build.bat` and UnrealSpeccy configured for ATM710, RAMSize=1024, AtmMemSwap=1, UsePalette=1 and ROMSET=ATM2. A successful log proves code execution; each renderer still requires visual verification.
+## Память видеорежимов
 
+- ATM 640×200: page 5 bitmap и page 1 attributes; чётные/нечётные знакоместа разделены между 8K-областями.
+- ATM EGA 320×200×16: четыре плоскости `$C000/$4000/$E000/$6000`.
+- ATM Text 80×25: коды символов в page 5, атрибуты в page 1.
 
-## Current visual diagnosis (2026-11-02)
+Подробная карта памяти, загрузочная цепочка, критерии приёмки и текущий статус — в [SCENARIO.md](SCENARIO.md).
 
-The latest repository screenshot `1.png` shows a colored mosaic rather than the expected character grid. The runtime log confirms that the drawing routine ran, but does not prove that the video controller fetched the CPU-mapped physical pages.
+## Статус проверки
 
-The 640x200 renderer's documented address arithmetic has been checked against the ATM2+ specification: page 5 bitmap, page 1 attributes, 40 bytes per scanline, and even/odd columns in the two 8K halves. Do not change this arithmetic or the glyph byte format until the physical page mapping and video fetch source have been verified.
-
-The startup value is `#C2`, not `#82`. The two values differ in D6 (VE1); keep this consistent in the BASIC loader and runtime initialization.
+В репозитории опубликованы исправления загрузчика и стартового вызова отрисовки. Сборка SjASMPlus и визуальный запуск в UnrealSpeccy после этих изменений ещё не подтверждены фактическим логом/скриншотом. Не считать режимы принятыми только по наличию исходного кода.
