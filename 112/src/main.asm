@@ -373,6 +373,7 @@ ProgramEnd112:
 CLEAR       EQU $FD
 LOAD        EQU $EF
 CODE        EQU $AF
+REM         EQU $EA
 RANDOMIZE   EQU $F9
 USR         EQU $C0
 OUT_CMD     EQU $DF
