@@ -116,49 +116,18 @@ DebugPrintDone112:
 ; Clear the full 16K screen window in RAM page 5. This also clears
 ; the secondary $6000-$77FF plane used by 512x192 / A4B-style modes.
 ClearVideoMemory112:
+        ; Mode-specific screen-memory clearing lives in the corresponding
+        ; mode module. The common entry point only dispatches.
         LD      A,(Current_Mode_Index)
-        CP      4
-        LD      A,$10
-        JR      NZ,ClearPageSelect112
-        LD      A,$04
-ClearPageSelect112:
-        LD      BC,$7FFD
-        OUT     (C),A
-        LD      HL,$4000
-        LD      DE,$4001
-        LD      BC,$3FFF
-        LD      (HL),0
-        LDIR
-
-        LD      A,(Current_Mode_Index)
-        CP      4
-        JR      Z,Clear384UpperBank112
+        CP      0
+        JP      Z,ClearVideoMemory_Standard112
+        CP      1
+        JP      Z,ClearVideoMemory_512112
+        CP      2
+        JP      Z,ClearVideoMemory_A4B112
         CP      3
-        JR      Z,Clear16ColorPlanes112
-        RET
-
-Clear384UpperBank112:
-        ; 384x304 uses RAM page 4 at C000-FFFF and page 5 at 4000-7FFF.
-        LD      HL,$C000
-        LD      DE,$C001
-        LD      BC,$3FFF
-        LD      (HL),0
-        LDIR
-        RET
-
-Clear16ColorPlanes112:
-        ; 16-color uses the two 6144-byte regions in selected RAM bank 0.
-        LD      HL,$C000
-        LD      DE,$C001
-        LD      BC,$17FF
-        LD      (HL),0
-        LDIR
-        LD      HL,$E000
-        LD      DE,$E001
-        LD      BC,$17FF
-        LD      (HL),0
-        LDIR
-        RET
+        JP      Z,ClearVideoMemory_16Color112
+        JP      ClearVideoMemory_384112
 
 DrawDemoScreen:
         CALL    ClearVideoMemory112
@@ -312,7 +281,7 @@ PrintString112:
         JR      PrintString112
 
 ; Draw one 8x8 glyph. A=ASCII, C=column, D=character row.
-; The 8x8 font is stored as 96 consecutive glyphs for ASCII 32..127.
+; Mode-specific bitmap and attribute operations are delegated to mode files.
 PrintChar112:
         PUSH    BC
         PUSH    DE
@@ -344,258 +313,45 @@ GlyphLineLoop112:
         LD      (Temp_FontByte112),A
         INC     HL
         LD      (FontPointer112),HL
-        PUSH    HL
-        ; Recalculate destination for the selected bitmap organization.
+        ; Dispatch one scanline to the active mode's independent renderer.
         LD      A,(Current_Mode_Index)
-        CP      4
-        JP      Z,PrintGlyph384_112
-        CP      3
-        JP      Z,PrintGlyph16Color112
+        CP      0
+        CALL    Z,RenderGlyph_Standard112
+        LD      A,(Current_Mode_Index)
         CP      1
-        JP      Z,PrintGlyph512_112
-        ; Standard 256x192 bitmap (also the pixel plane of A4B).
-        LD      HL,0
-        LD      A,(Temp_Y112)
-        AND     $18
-        OR      $40
-        LD      H,A
-        LD      A,(GlyphLine112)
-        OR      H
-        LD      H,A
-        LD      A,(Temp_Y112)
-        AND     7
-        RLCA
-        RLCA
-        RLCA
-        RLCA
-        RLCA
-        LD      L,A
-        LD      A,(Temp_X112)
-        OR      L
-        LD      L,A
-        JP      PrintGlyphStore112
-
-PrintGlyph384_112:
-        ; Canonical 384x304 XYSC384 mapping. Y is a 0..303 scanline,
-        ; E is the 0..47 byte column; page 4 must be mapped at C000.
-        LD      A,(Temp_Y112)
-        LD      C,A
-        LD      B,0
-        SLA     C
-        RL      B
-        SLA     C
-        RL      B
-        SLA     C
-        RL      B
-        LD      A,(GlyphLine112)
-        ADD     A,C
-        LD      C,A
-        JR      NC,Print384YReady112
-        INC     B
-Print384YReady112:
-        LD      A,(Temp_X112)
-        LD      E,A
-        CALL    XYSC384_112
-        LD      A,(Temp_FontByte112)
-        LD      (HL),A
-        POP     HL
-        JP      PrintGlyphLineStored112
-
-PrintGlyph16Color112:
-        ; Pentagon 16col stores two adjacent pixels in one byte.
-        ; Four consecutive bytes are interleaved across C000/4000/E000/6000;
-        ; the character column is the offset within each of these four areas.
-        LD      A,(Temp_Y112)
-        ADD     A,A
-        ADD     A,A
-        ADD     A,A
-        LD      B,A
-        LD      A,(GlyphLine112)
-        ADD     A,B
-        LD      B,A
-        ; Standard Spectrum bitmap interleave inside each 6K segment:
-        ; H=(Y&$C0)>>3 | (Y&7), L=(Y&$38)<<2 | character_column.
-        LD      A,B
-        AND     $C0
-        RRCA
-        RRCA
-        RRCA
-        AND     $18
-        LD      H,A
-        LD      A,B
-        AND     7
-        OR      H
-        LD      H,A
-        LD      A,B
-        AND     $38
-        RLCA
-        RLCA
-        LD      L,A
-        LD      A,(Temp_X112)
-        ADD     A,L
-        LD      L,A
-        JR      NC,ColorOffsetReady112
-        INC     H
-ColorOffsetReady112:
-        LD      (ColorOffset112),HL
-        LD      A,(Temp_FontByte112)
-        LD      (ColorShiftByte112),A
-        XOR     A
-        LD      (ColorPlaneIndex112),A
-ColorPairLoop112:
-        ; Pair bit 1 is the left pixel, bit 0 the right pixel.
-        LD      A,(ColorShiftByte112)
-        RLCA
-        RLCA
-        LD      (ColorShiftByte112),A
-        AND     3
-        LD      E,A
-        LD      D,0
-        LD      HL,ColorPairValues112
-        ADD     HL,DE
-        LD      A,(HL)
-        LD      (ColorByte112),A
-
-        ; Select the corresponding interleaved 6K memory segment.
-        LD      A,(ColorPlaneIndex112)
-        ADD     A,A
-        LD      E,A
-        LD      D,0
-        LD      HL,ColorPlaneBases112
-        ADD     HL,DE
-        LD      E,(HL)
-        INC     HL
-        LD      D,(HL)
-        EX      DE,HL
-        LD      DE,(ColorOffset112)
-        ADD     HL,DE
-        LD      A,(ColorByte112)
-        LD      (HL),A
-
-        LD      A,(ColorPlaneIndex112)
-        INC     A
-        LD      (ColorPlaneIndex112),A
-        CP      4
-        JP      NZ,ColorPairLoop112
-        POP     HL
-        JR      PrintGlyphLineStored112
-
-PrintGlyph512_112:
-        ; 512x192: even and odd byte columns are stored in separate
-        ; 16K screen halves. Each half receives byte index column/2.
-        LD      A,(Temp_Y112)
-        ADD     A,A
-        ADD     A,A
-        ADD     A,A
-        LD      B,A
-        LD      A,(GlyphLine112)
-        ADD     A,B
-        LD      B,A
-        LD      A,B
-        AND     $C0
-        RRCA
-        RRCA
-        RRCA
-        OR      $40
-        LD      H,A
-        LD      A,B
-        AND     7
-        OR      H
-        LD      H,A
-        LD      A,B
-        AND     $38
-        RLCA
-        RLCA
-        LD      L,A
-        LD      A,(Temp_X112)
-        SRL     A
-        OR      L
-        LD      L,A
-        LD      A,(Temp_X112)
-        AND     1
-        JR      Z,PrintGlyphStore112
-        SET     5,H
-PrintGlyphStore112:
-        LD      A,(Temp_FontByte112)
-        LD      (HL),A
-
-        ; A4B hardware multicolor: one attribute byte per bitmap byte.
-        ; The bitmap is in $4000-$57FF; matching attributes are in
-        ; $6000-$77FF at the same relative offset.
+        CALL    Z,RenderGlyph_512112
         LD      A,(Current_Mode_Index)
         CP      2
-        JR      NZ,PrintGlyphStoreDone112
-        PUSH    HL
-        LD      DE,$2000
-        ADD     HL,DE
-        LD      A,$47
-        LD      (HL),A
-        POP     HL
-PrintGlyphStoreDone112:
-        POP     HL
-PrintGlyphLineStored112:
+        CALL    Z,RenderGlyph_A4B112
+        LD      A,(Current_Mode_Index)
+        CP      3
+        CALL    Z,RenderGlyph_16Color112
+        LD      A,(Current_Mode_Index)
+        CP      4
+        CALL    Z,RenderGlyph_384112
+
         LD      A,(GlyphLine112)
         INC     A
         LD      (GlyphLine112),A
         CP      8
         JP      NZ,GlyphLineLoop112
 
-        ; 512x192 and 16-color modes have no Spectrum attribute plane.
+        ; Character-level attributes are also mode-owned.
+        LD      A,(Current_Mode_Index)
+        CP      0
+        CALL    Z,RenderAttributes_Standard112
         LD      A,(Current_Mode_Index)
         CP      1
-        JR      Z,PrintCharDone112
+        CALL    Z,RenderAttributes_512112
+        LD      A,(Current_Mode_Index)
         CP      2
-        JR      Z,PrintCharDone112
+        CALL    Z,RenderAttributes_A4B112
+        LD      A,(Current_Mode_Index)
         CP      3
-        JR      Z,PrintCharDone112
+        CALL    Z,RenderAttributes_16Color112
+        LD      A,(Current_Mode_Index)
         CP      4
-        JR      Z,Print384Attribute112
-
-        ; Character attribute: bright white ink on black paper for every glyph.
-        ; Standard mode uses the 8x8 attribute table at $5800.
-        ; A4B is handled separately as one attribute per bitmap byte at $6000.
-        LD      A,(Temp_Y112)
-        LD      L,A
-        LD      H,0
-        ADD     HL,HL
-        ADD     HL,HL
-        ADD     HL,HL
-        ADD     HL,HL
-        ADD     HL,HL
-        LD      DE,$5800
-        ADD     HL,DE
-        LD      A,(Temp_X112)
-        ADD     A,L
-        LD      L,A
-        JR      NC,AttrAddressReady112
-        INC     H
-AttrAddressReady112:
-        LD      A,$47                 ; BRIGHT white ink, black paper
-        LD      (HL),A
-
-        ; A4B attributes were written alongside each bitmap scanline
-        ; in PrintGlyphStore112; there is no 8x8 attribute plane here.
-        JR      PrintCharDone112
-
-Print384Attribute112:
-        ; Attribute address is derived from the 384x304 bitmap address.
-        ; Build the full 16-bit scanline Y*8: rows 32..37 are 256..303
-        ; and must not wrap back to the top of the screen.
-        LD      A,(Temp_Y112)
-        LD      C,A
-        LD      B,0
-        SLA     C
-        RL      B
-        SLA     C
-        RL      B
-        SLA     C
-        RL      B
-        LD      A,(Temp_X112)
-        LD      E,A
-        CALL    XYSC384_112
-        CALL    SA384_112
-        LD      A,$47
-        LD      (HL),A
+        CALL    Z,RenderAttributes_384112
 
 PrintCharDone112:
         POP     HL
@@ -604,75 +360,14 @@ PrintCharDone112:
         RET
 
 ; -------------------------------------------------------------------------
-; Pentagon 384x304 address helpers, transcribed from Video/ig7m384p (1).htm.
-; XYSC input: BC=scanline 0..303, E=byte column 0..47; output HL=bitmap byte.
-; SA input/output: HL bitmap address -> corresponding attribute address.
+; Independent video-mode implementations.
+; Keep mode-specific memory maps, clearing and glyph rendering in these files.
 ; -------------------------------------------------------------------------
-XYSC384_112:
-        CALL    YSC384_112
-        LD      A,E
-        SUB     8
-        JR      C,XS384Left112
-        CP      32
-        JR      C,XS384Middle112
-        SUB     32+$18
-XS384Left112:
-        ADD     A,8+$18
-        JR      XS384Add112
-XS384Middle112:
-        SET     5,H
-XS384Add112:
-        ADD     A,L
-        LD      L,A
-        RET
-
-YSC384_112:
-        LD      A,C
-        AND     7
-        LD      H,A
-        XOR     C
-        ; Canonical Pentagon XYSC384: L=(Y & $F8) << 4.
-        ; Four shifts are required for the 48-byte-wide 384x304 layout.
-        ADD     A,A
-        ADD     A,A
-        ADD     A,A
-        ADD     A,A
-        LD      L,A
-        LD      A,$D8
-        INC     B
-        DJNZ    YSC384Low112
-        LD      A,C
-        AND     $C0
-        RRCA
-        RRCA
-        RRCA
-        JR      NZ,YSC384SkipLoad112
-        LD      A,$C0-$38
-YSC384SkipLoad112:
-        ADD     A,$38
-        ADD     A,H
-        LD      H,A
-        RET
-YSC384Low112:
-        ADD     A,H
-        LD      H,A
-        RET
-
-SA384_112:
-        LD      A,H
-        AND     $D8
-        JP      P,SA384Positive112
-        ADD     A,$86-$C0-$C2+$40
-SA384Positive112:
-        ADD     A,$C2-$40
-        RRCA
-        RRCA
-        RRCA
-        XOR     H
-        AND     $DF
-        XOR     H
-        LD      H,A
-        RET
+        INCLUDE "src/mode_standard.asm"
+        INCLUDE "src/mode_512.asm"
+        INCLUDE "src/mode_a4b.asm"
+        INCLUDE "src/mode_16color.asm"
+        INCLUDE "src/mode_384.asm"
 
 ; -------------------------------------------------------------------------
 ; Data
