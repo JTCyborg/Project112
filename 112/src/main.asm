@@ -366,6 +366,7 @@ Font88_112:
 ProgramEnd112:
 
 ; =========================================================================
+; =========================================================================
 ; TR-DOS BASIC loader
 ; =========================================================================
         ORG     $B000
@@ -374,103 +375,86 @@ LOAD        EQU $EF
 CODE        EQU $AF
 RANDOMIZE   EQU $F9
 USR         EQU $C0
-VAL         EQU $B0
 OUT_CMD     EQU $DF
 
 basic_loader:
-        ; Line 10: mark loader entry, then reserve BASIC memory.
-        DB      0,10
-        DW      L10_END-L10
-L10:
-        DB      OUT_CMD
-        DB      "239", #0E, #00, #00, #EF, #00, #00
-        DB      ","
-        DB      "1", #0E, #00, #00, #01, #00, #00
-        DB      ":"
-        DB      CLEAR, "32767", #0E, #00, #00
+        ; Line 5: P112 START diagnostic message on port #EF.
+        DB      0, 5
+        DW      l5_len
+l5:
+        DB      OUT_CMD, "239", ",", "80", ":"
+        DB      OUT_CMD, "239", ",", "49", ":"
+        DB      OUT_CMD, "239", ",", "49", ":"
+        DB      OUT_CMD, "239", ",", "50", ":"
+        DB      OUT_CMD, "239", ",", "32", ":"
+        DB      OUT_CMD, "239", ",", "83", ":"
+        DB      OUT_CMD, "239", ",", "84", ":"
+        DB      OUT_CMD, "239", ",", "65", ":"
+        DB      OUT_CMD, "239", ",", "82", ":"
+        DB      OUT_CMD, "239", ",", "84", ":"
+        DB      OUT_CMD, "239", ",", "13", ":"
+        DB      OUT_CMD, "239", ",", "10", $0D
+l5_len EQU     $-l5
+
+        ; Original line 10 is deliberately preserved unchanged.
+        DB      0, 10
+        DW      l10_len
+l10:
+        DB      CLEAR, "32767", $0E, 0, 0
         DW      32767
-        DB      #0D
-L10_END:
+        DB      0, $0D
+l10_len EQU     $-l10
 
-        ; Line 11: P112 START -> diagnostic port #EF.
-        DB      0, 11
-        DW      L11_END-L11
-L11:
-        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "80", 34
-        DB      ":"
-        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "49", 34
-        DB      ":"
-        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "49", 34
-        DB      ":"
-        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "50", 34
-        DB      ":"
-        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "32", 34
-        DB      ":"
-        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "83", 34
-        DB      ":"
-        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "84", 34
-        DB      ":"
-        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "65", 34
-        DB      ":"
-        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "82", 34
-        DB      ":"
-        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "84", 34
-        DB      ":"
-        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "13", 34
-        DB      ":"
-        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "10", 34
-        DB      #0D
-L11_END:
+        ; Line 15: CLEAR completed.
+        DB      0, 15
+        DW      l15_len
+l15:
+        DB      OUT_CMD, "239", ",", "67", ":"
+        DB      OUT_CMD, "239", ",", "76", ":"
+        DB      OUT_CMD, "239", ",", "69", ":"
+        DB      OUT_CMD, "239", ",", "65", ":"
+        DB      OUT_CMD, "239", ",", "82", ":"
+        DB      OUT_CMD, "239", ",", "32", ":"
+        DB      OUT_CMD, "239", ",", "79", ":"
+        DB      OUT_CMD, "239", ",", "75", ":"
+        DB      OUT_CMD, "239", ",", "13", ":"
+        DB      OUT_CMD, "239", ",", "10", $0D
+l15_len EQU     $-l15
 
-        ; Line 20: initialize TR-DOS, then load the machine-code file.
-        ; LOAD and CODE are BASIC tokens, not printable text.
-        DB      0,20
-        DW      L20_END-L20
-L20:
-        DB      RANDOMIZE, USR, "15619", #0E, #00, #00
+        ; Original line 20: TR-DOS initialization and file loading.
+        DB      0, 20
+        DW      l20_len
+l20:
+        DB      RANDOMIZE, USR, "15619", $0E, 0, 0
         DW      15619
-        DB      #00, #3A
-        DB      LOAD, 34, "proj112", 34, CODE
-        DB      "32768", #0E, #00, #00, #00, #80, #00
-        DB      #0D
-L20_END:
+        DB      0
+        DB      $3A, REM, $3A
+        DB      "LOAD ", 34, "proj112", 34, " CODE 32768", $0D
+l20_len EQU     $-l20
 
-        ; Line 21: LOADED -> diagnostic port #EF.
-        DB      0, 21
-        DW      L21_END-L21
-L21:
-        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "76", 34
-        DB      ":"
-        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "79", 34
-        DB      ":"
-        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "65", 34
-        DB      ":"
-        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "68", 34
-        DB      ":"
-        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "69", 34
-        DB      ":"
-        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "68", 34
-        DB      ":"
-        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "13", 34
-        DB      ":"
-        DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "10", 34
-        DB      #0D
-L21_END:
+        ; Line 25: LOAD completed.
+        DB      0, 25
+        DW      l25_len
+l25:
+        DB      OUT_CMD, "239", ",", "76", ":"
+        DB      OUT_CMD, "239", ",", "79", ":"
+        DB      OUT_CMD, "239", ",", "65", ":"
+        DB      OUT_CMD, "239", ",", "68", ":"
+        DB      OUT_CMD, "239", ",", "69", ":"
+        DB      OUT_CMD, "239", ",", "68", ":"
+        DB      OUT_CMD, "239", ",", "13", ":"
+        DB      OUT_CMD, "239", ",", "10", $0D
+l25_len EQU     $-l25
 
-        ; Line 30: enter runtime phase and execute the program at $8000.
-        DB      0,30
-        DW      L30_END-L30
-L30:
-        DB      OUT_CMD
-        DB      "239", #0E, #00, #00, #EF, #00, #00
-        DB      ","
-        DB      "2", #0E, #00, #00, #02, #00, #00
-        DB      ":"
-        DB      RANDOMIZE, USR, "32768", #0E, #00, #00
+        ; Line 30: phase marker, then original machine-code entry.
+        DB      0, 30
+        DW      l30_len
+l30:
+        DB      OUT_CMD, "239", ",", "2", $3A
+        DB      RANDOMIZE, USR, "32768", $0E, 0, 0
         DW      32768
-        DB      #0D
-L30_END:
-
+        DB      0, $0D
+l30_len EQU     $-l30
 basic_loader_end:
 
         SAVETRD "project112.TRD","proj112.B",basic_loader,basic_loader_end-basic_loader,10
