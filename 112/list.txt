@@ -1,0 +1,672 @@
+# file opened: main.asm
+  1   0000              ; =========================================================================
+  2   0000              ; PERFECT COMMANDER 112 — ГЛАВНЫЙ МОДУЛЬ СИСТЕМЫ И ПЕРЕКЛЮЧЕНИЯ РЕЖИМОВ
+  3   0000              ; РАЗРАБОТКА: Инфарх (1998) & Alone Coder (2005) & AI (2026)
+  4   0000              ; СБОРКА: СТРОГО ПОД ЧАНКОВУЮ АРХИТЕКТУРУ UNREALSPECCY (ПОРТЫ #7FFD / #EFF7)
+  5   0000              ; =========================================================================
+  6   0000
+  7   0000                      DEVICE ZXSPECTRUM128
+  8   0000                      EMPTYTRD "project112.TRD"
+  9   0000
+ 10   0000                      ; Исполняемый код жестко зафиксирован в безопасной зоне ОЗУ
+ 11   0000                      ORG $8000
+ 12   8000
+ 13   8000              Init_Z80_System112:
+ 14   8000 F3                   DI                              ; Полное отключение прерываний IM 1
+ 15   8001 ED 73 C1 80          LD      (Saved_SP_112), SP
+ 16   8005 31 FF 7F             LD      SP, $7FFF               ; Уносим стек хоста в безопасную зону
+ 17   8008
+ 18   8008                      ; Настройка начальной配置 страниц ОЗУ (RAM 0)
+ 19   8008 3E 10                LD      A, #10
+ 20   800A 01 FD 7F             LD      BC, #7FFD
+ 21   800D ED 79                OUT     (C), A
+ 22   800F
+ 23   800F                      ; Аппаратное включение стартового режима Pentagon 384x304
+ 24   800F 3E 40                LD      A, #40
+ 25   8011 32 C4 80             LD      (Current_Mode_Byte), A
+ 26   8014 01 F7 EF             LD      BC, #EFF7
+ 27   8017 ED 79                OUT     (C), A
+ 28   8019
+ 29   8019                      ; Первичная синхронизация бордюра со стартовым режимом
+ 30   8019 CD 9F 80             CALL    UpdateBorderColor
+ 31   801C
+ 32   801C CD 31 80             CALL    RefreshScreen_AllData
+ 33   801F
+ 34   801F              .MainLoop112:
+ 35   801F                      ; Опрос клавиатурного полуряда Space..Break (Порт #7FFE)
+ 36   801F 01 FE 7F             LD      BC, #7FFE
+ 37   8022 ED 78                IN      A, (C)
+ 38   8024 1F                   RRA                             ; Выталкиваем статус Space в Carry
+ 39   8025 38 F8                JR      C, .MainLoop112
+ 40   8027
+ 41   8027                      ; Ожидание отпускания клавиши (защита от дребезга)
+ 42   8027              .wait_release:
+ 43   8027 ED 78                IN      A, (C)
+ 44   8029 1F                   RRA
+ 45   802A 30 FB                JR      NC, .wait_release
+ 46   802C
+ 47   802C                      ; Интерактивное циклическое переключение видеорежимов
+ 48   802C CD 7C 80             CALL    SwitchToNextVideoMode
+ 49   802F 18 EE                JR      .MainLoop112
+ 50   8031
+ 51   8031              ; --- ПОДПРОГРАММА ПЕРЕРИСОВКИ ВСЕХ ДАННЫХ ИНТЕРФЕЙСА ---
+ 52   8031              RefreshScreen_AllData:
+ 53   8031 CD 5C 82             CALL    ClearScreen_384x304
+ 54   8034 CD 7D 83             CALL    DrawHeader_384x304
+ 55   8037
+ 56   8037                      ; Вывод названия проекта в шапке (X передается в линейных байтах)
+ 57   8037 21 C5 80             LD      HL, Msg_Title
+ 58   803A 0E 01                LD      C, 1
+ 59   803C 16 00                LD      D, 0
+ 60   803E CD B9 82             CALL    PrintString_384x304
+ 61   8041
+ 62   8041 CD 9F 83             CALL    DrawPanels_384x304
+ 63   8044
+ 64   8044                      ; Системные логи внутри файловых панелей
+ 65   8044 21 FF 80             LD      HL, Msg_CurrentMode
+ 66   8047 0E 02                LD      C, 2
+ 67   8049 16 04                LD      D, 4
+ 68   804B CD B9 82             CALL    PrintString_384x304
+ 69   804E
+ 70   804E                      ; Вывод имени текущего активного видеорежима эмулятора
+ 71   804E 3A C3 80             LD      A, (Current_Mode_Index)
+ 72   8051 6F                   LD      L, A
+ 73   8052 26 00                LD      H, 0
+ 74   8054 29                   ADD     HL, HL
+ 75   8055 11 AA 81             LD      DE, Mode_Names_Table
+ 76   8058 19                   ADD     HL, DE
+ 77   8059 7E                   LD      A, (HL)
+ 78   805A 23                   INC     HL
+ 79   805B 66                   LD      H, (HL)
+ 80   805C 6F                   LD      L, A
+ 81   805D 0E 18                LD      C, 24                   ; Позиция названия (24 байта смещения)
+ 82   805F 16 04                LD      D, 4
+ 83   8061 CD B9 82             CALL    PrintString_384x304
+ 84   8064
+ 85   8064                      ; Вывод цифрового счетчика [X/5]
+ 86   8064 CD AD 80             CALL    UpdateModeIndicator
+ 87   8067
+ 88   8067 21 17 81             LD      HL, Msg_Help
+ 89   806A 0E 02                LD      C, 2
+ 90   806C 16 06                LD      D, 6
+ 91   806E CD B9 82             CALL    PrintString_384x304
+ 92   8071
+ 93   8071 21 4C 81             LD      HL, Msg_LogReg
+ 94   8074 0E 02                LD      C, 2
+ 95   8076 16 08                LD      D, 8
+ 96   8078 CD B9 82             CALL    PrintString_384x304
+ 97   807B C9                   RET
+ 98   807C
+ 99   807C              ; --- ЛОГИКА ПЕРЕКЛЮЧЕНИЯ РЕГИСТРОВ ПОРТА #EFF7 ---
+100   807C              SwitchToNextVideoMode:
+101   807C 3A C3 80             LD      A, (Current_Mode_Index)
+102   807F 3C                   INC     A
+103   8080 FE 05                CP      5                       ; Доступно ровно 5 видео-конфигураций
+104   8082 20 01                JR      NZ, .save_index
+105   8084 AF                   XOR     A
+106   8085              .save_index:
+107   8085 32 C3 80             LD      (Current_Mode_Index), A
+108   8088
+109   8088                      ; Извлечение аппаратной маски из таблицы
+110   8088 6F                   LD      L, A
+111   8089 26 00                LD      H, 0
+112   808B 11 52 82             LD      DE, Mode_Hardware_Bytes
+113   808E 19                   ADD     HL, DE
+114   808F 7E                   LD      A, (HL)
+115   8090 32 C4 80             LD      (Current_Mode_Byte), A
+116   8093
+117   8093                      ; Физическая отправка конфигурации в UnrealSpeccy
+118   8093 01 F7 EF             LD      BC, #EFF7
+119   8096 ED 79                OUT     (C), A
+120   8098
+121   8098                      ; Синхронное обновление цвета бордюра под новый режим
+122   8098 CD 9F 80             CALL    UpdateBorderColor
+123   809B
+124   809B CD 31 80             CALL    RefreshScreen_AllData
+125   809E C9                   RET
+126   809F
+127   809F              ; --- ПОДПРОГРАММА СИНХРОНИЗАЦИИ ЦВЕТА БОРДЮРА ---
+128   809F              UpdateBorderColor:
+129   809F 3A C3 80             LD      A, (Current_Mode_Index)
+130   80A2 6F                   LD      L, A
+131   80A3 26 00                LD      H, 0
+132   80A5 11 57 82             LD      DE, Mode_Border_Colors
+133   80A8 19                   ADD     HL, DE
+134   80A9 7E                   LD      A, (HL)
+135   80AA D3 FE                OUT     (#FE), A
+136   80AC C9                   RET
+137   80AD
+138   80AD              ; --- ВOССТАНOВЛЕННАЯ ПОДПРОГРАММА СЧЕТЧИКА [X/5] ---
+139   80AD              UpdateModeIndicator:
+140   80AD 3A C3 80             LD      A, (Current_Mode_Index)
+141   80B0 3C                   INC     A
+142   80B1 C6 30                ADD     A, 48
+143   80B3 32 A5 81             LD      (Str_Buf_Num), A
+144   80B6
+145   80B6 21 7F 81             LD      HL, Msg_Counter
+146   80B9 0E 02                LD      C, 2
+147   80BB 16 0A                LD      D, 10
+148   80BD CD B9 82             CALL    PrintString_384x304
+149   80C0 C9                   RET
+150   80C1
+151   80C1              ; --- СИСТЕМНЫЕ ДАННЫЕ И ТАБЛИЦЫ ---
+152   80C1 00 00        Saved_SP_112:           DW 0
+153   80C3 02           Current_Mode_Index:     DB 2            ; По умолчанию стартуем в режиме №2 (384x304)
+154   80C4 40           Current_Mode_Byte:      DB #40
+155   80C5
+156   80C5 50 45 52 46  Msg_Title:      DEFM "PERFECT COMMANDER 112 * UNREAL VIDEO MODE HARDWARE TESTER", 0
+156   80C9 45 43 54 20
+156   80CD 43 4F 4D 4D
+156   80D1 41 4E 44 45
+156   80D5 52 20 31 31
+156   80D9 32 20 2A 20
+156   80DD 55 4E 52 45
+156   80E1 41 4C 20 56
+156   80E5 49 44 45 4F
+156   80E9 20 4D 4F 44
+156   80ED 45 20 48 41
+156   80F1 52 44 57 41
+156   80F5 52 45 20 54
+156   80F9 45 53 54 45
+156   80FD 52 00
+157   80FF 41 43 54 49  Msg_CurrentMode:DEFM "ACTIVE REG #EFF7 MODE: ", 0
+157   8103 56 45 20 52
+157   8107 45 47 20 23
+157   810B 45 46 46 37
+157   810F 20 4D 4F 44
+157   8113 45 3A 20 00
+158   8117 2D 3E 20 5B  Msg_Help:       DEFM "-> [CONTROL]: PRESS 'SPACE' TO CYCLE EXTENDED MODES.", 0
+158   811B 43 4F 4E 54
+158   811F 52 4F 4C 5D
+158   8123 3A 20 50 52
+158   8127 45 53 53 20
+158   812B 27 53 50 41
+158   812F 43 45 27 20
+158   8133 54 4F 20 43
+158   8137 59 43 4C 45
+158   813B 20 45 58 54
+158   813F 45 4E 44 45
+158   8143 44 20 4D 4F
+158   8147 44 45 53 2E
+158   814B 00
+159   814C 50 45 4E 54  Msg_LogReg:     DEFM "PENTAGON-384 BUS DETECTED. VIDEO STACK STATUS: OK.", 0
+159   8150 41 47 4F 4E
+159   8154 2D 33 38 34
+159   8158 20 42 55 53
+159   815C 20 44 45 54
+159   8160 45 43 54 45
+159   8164 44 2E 20 56
+159   8168 49 44 45 4F
+159   816C 20 53 54 41
+159   8170 43 4B 20 53
+159   8174 54 41 54 55
+159   8178 53 3A 20 4F
+159   817C 4B 2E 00
+160   817F
+161   817F 43 55 52 52  Msg_Counter:    DEFM "CURRENT ACTIVE STATUS CONFIGURATION: ["
+161   8183 45 4E 54 20
+161   8187 41 43 54 49
+161   818B 56 45 20 53
+161   818F 54 41 54 55
+161   8193 53 20 43 4F
+161   8197 4E 46 49 47
+161   819B 55 52 41 54
+161   819F 49 4F 4E 3A
+161   81A3 20 5B
+162   81A5 33           Str_Buf_Num:    DEFM "3"
+163   81A6 2F 35 5D 00                  DEFM "/5]", 0
+164   81AA
+165   81AA              ; Таблица адресов текстовых строк
+166   81AA              Mode_Names_Table:
+167   81AA B4 81                DW      Str_Mode0
+168   81AC D4 81                DW      Str_Mode1
+169   81AE F3 81                DW      Str_Mode2
+170   81B0 13 82                DW      Str_Mode3
+171   81B2 33 82                DW      Str_Mode4
+172   81B4
+173   81B4 30 30 3A 20  Str_Mode0:      DEFM "00: STANDARD SPECTRUM 256x192  ", 0
+173   81B8 53 54 41 4E
+173   81BC 44 41 52 44
+173   81C0 20 53 50 45
+173   81C4 43 54 52 55
+173   81C8 4D 20 32 35
+173   81CC 36 78 31 39
+173   81D0 32 20 20 00
+174   81D4 30 31 3A 20  Str_Mode1:      DEFM "01: HARDWARE MULTICOLOR 8x1   ", 0
+174   81D8 48 41 52 44
+174   81DC 57 41 52 45
+174   81E0 20 4D 55 4C
+174   81E4 54 49 43 4F
+174   81E8 4C 4F 52 20
+174   81EC 38 78 31 20
+174   81F0 20 20 00
+175   81F3 30 32 3A 20  Str_Mode2:      DEFM "02: PENTAGON HIGH-RES 384x304  ", 0
+175   81F7 50 45 4E 54
+175   81FB 41 47 4F 4E
+175   81FF 20 48 49 47
+175   8203 48 2D 52 45
+175   8207 53 20 33 38
+175   820B 34 78 33 30
+175   820F 34 20 20 00
+176   8213 30 33 3A 20  Str_Mode3:      DEFM "03: LOW-RES 16-COLOR (ATM CHIP)", 0
+176   8217 4C 4F 57 2D
+176   821B 52 45 53 20
+176   821F 31 36 2D 43
+176   8223 4F 4C 4F 52
+176   8227 20 28 41 54
+176   822B 4D 20 43 48
+176   822F 49 50 29 00
+177   8233 30 34 3A 20  Str_Mode4:      DEFM "04: HARDWARE GIGASCREEN INTERL", 0
+177   8237 48 41 52 44
+177   823B 57 41 52 45
+177   823F 20 47 49 47
+177   8243 41 53 43 52
+177   8247 45 45 4E 20
+177   824B 49 4E 54 45
+177   824F 52 4C 00
+178   8252
+179   8252              ; Table of port configurations
+180   8252              Mode_Hardware_Bytes:
+181   8252 00                   DB      %00000000
+182   8253 20                   DB      %00100000
+183   8254 40                   DB      %01000000
+184   8255 01                   DB      %00000001
+185   8256 48                   DB      %01000000 | %00001000
+186   8257
+187   8257              ; Таблица аппаратной цветовой шифровки бордюра
+188   8257              Mode_Border_Colors:
+189   8257 01                   DB      1                       ; Синий бордюр (00)
+190   8258 04                   DB      4                       ; Зеленый бордюр (01)
+191   8259 00                   DB      0                       ; Черный бордюр (02)
+192   825A 02                   DB      2                       ; Красный бордюр (03)
+193   825B 06                   DB      6                       ; Желтый бордюр (04)
+194   825C
+195   825C                      INCLUDE "src/display_384.asm"
+# file opened: display_384.asm
+  1+  825C              ; =========================================================================
+  2+  825C              ; PERFECT COMMANDER 112 — СИСТЕМНЫЙ ДРАЙВЕР СТРАНИЧНОЙ ВИДЕOПАМЯТИ
+  3+  825C              ; МОДУЛЬ: src/display_384.asm (КАНОНИЧЕСКАЯ АДРЕСАЦИЯ PENTAGON 384)
+  4+  825C              ; =========================================================================
+  5+  825C
+  6+  825C              ClearScreen_384x304:
+  7+  825C F5                   PUSH    AF
+  8+  825D C5                   PUSH    BC
+  9+  825E D5                   PUSH    DE
+ 10+  825F E5                   PUSH    HL
+ 11+  8260
+ 12+  8260 ED 73 EC 83          LD      (Temp_Clear_SP), SP
+ 13+  8264 31 FF 7F             LD      SP, $7FFF               ; Защитный перенос стека
+ 14+  8267
+ 15+  8267                      ; 1. Очищаем центральный экран в RAM 5 ($4000..$57FF)
+ 16+  8267 3E 15                LD      A, #15
+ 17+  8269 01 FD 7F             LD      BC, #7FFD
+ 18+  826C ED 79                OUT     (C), A
+ 19+  826E 21 00 40             LD      HL, $4000
+ 20+  8271 11 01 40             LD      DE, $4001
+ 21+  8274 01 FF 17             LD      BC, 6143
+ 22+  8277 36 00                LD      (HL), 0                 ; Пиксели в ноль
+ 23+  8279 ED B0                LDIR
+ 24+  827B
+ 25+  827B                      ; СБРОС АТРИБУТОВ В RAM 5 ДЛЯ ПРЕДОТВРАЩЕНИЯ ИНВЕРСИИ И БИРЮЗОВОГО ШУМА
+ 26+  827B 21 00 58             LD      HL, $5800
+ 27+  827E 11 01 58             LD      DE, $5801
+ 28+  8281 01 FF 02             LD      BC, 767
+ 29+  8284 36 07                LD      (HL), %00000111         ; Черный фон, белый текст (убирает бирюзу)
+ 30+  8286 ED B0                LDIR
+ 31+  8288
+ 32+  8288                      ; 2. Очищаем боковые панели в RAM 1 (через те же адреса $4000..$57FF)
+ 33+  8288 3E 11                LD      A, #11
+ 34+  828A 01 FD 7F             LD      BC, #7FFD
+ 35+  828D ED 79                OUT     (C), A
+ 36+  828F 21 00 40             LD      HL, $4000
+ 37+  8292 11 01 40             LD      DE, $4001
+ 38+  8295 01 FF 17             LD      BC, 6143
+ 39+  8298 36 00                LD      (HL), 0
+ 40+  829A ED B0                LDIR
+ 41+  829C
+ 42+  829C 21 00 58             LD      HL, $5800
+ 43+  829F 11 01 58             LD      DE, $5801
+ 44+  82A2 01 FF 02             LD      BC, 767
+ 45+  82A5 36 07                LD      (HL), %00000111         ; Черный фон, белый текст
+ 46+  82A7 ED B0                LDIR
+ 47+  82A9
+ 48+  82A9                      ; Возврат на системную RAM 0
+ 49+  82A9 3E 10                LD      A, #10
+ 50+  82AB 01 FD 7F             LD      BC, #7FFD
+ 51+  82AE ED 79                OUT     (C), A
+ 52+  82B0
+ 53+  82B0 ED 7B EC 83          LD      SP, (Temp_Clear_SP)
+ 54+  82B4 E1                   POP     HL
+ 55+  82B5 D1                   POP     DE
+ 56+  82B6 C1                   POP     BC
+ 57+  82B7 F1                   POP     AF
+ 58+  82B8 C9                   RET
+ 59+  82B9
+ 60+  82B9              PrintString_384x304:
+ 61+  82B9 7E                   LD      A, (HL)
+ 62+  82BA B7                   OR      A
+ 63+  82BB C8                   RET     Z
+ 64+  82BC E5                   PUSH    HL
+ 65+  82BD C5                   PUSH    BC                      ; Защита горизонтального счетчика X
+ 66+  82BE CD C7 82             CALL    PrintChar_384x304
+ 67+  82C1 C1                   POP     BC
+ 68+  82C2
+ 69+  82C2 0C                   INC     C                       ; В монохромном режиме 384 шаг равен ровно 1 байту!
+ 70+  82C3
+ 71+  82C3 E1                   POP     HL
+ 72+  82C4 23                   INC     HL
+ 73+  82C5 18 F2                JR      PrintString_384x304
+ 74+  82C7
+ 75+  82C7              PrintChar_384x304:
+ 76+  82C7 F5                   PUSH    AF
+ 77+  82C8 C5                   PUSH    BC
+ 78+  82C9 D5                   PUSH    DE
+ 79+  82CA E5                   PUSH    HL
+ 80+  82CB
+ 81+  82CB                      ; Буферизируем координаты вывода
+ 82+  82CB 79                   LD      A, C
+ 83+  82CC 32 E5 83             LD      (Temp_X_Pos), A
+ 84+  82CF 7A                   LD      A, D
+ 85+  82D0 32 E6 83             LD      (Temp_Y_Pos), A
+ 86+  82D3
+ 87+  82D3                      ; Извлекаем символ из стека хоста
+ 88+  82D3 DD E5                PUSH    IX
+ 89+  82D5 DD 21 00 00          LD      IX, 0
+ 90+  82D9 DD 39                ADD     IX, SP
+ 91+  82DB DD 7E 0E             LD      A, (IX + 14)            ; Коррекция смещения из-за PUSH BC в PrintString
+ 92+  82DE DD E1                POP     IX
+ 93+  82E0
+ 94+  82E0 D6 20                SUB     32                      ; Коррекция под таблицу шрифта
+ 95+  82E2 6F                   LD      L, A
+ 96+  82E3 26 00                LD      H, 0
+ 97+  82E5 29                   ADD     HL, HL
+ 98+  82E6 29                   ADD     HL, HL
+ 99+  82E7 29                   ADD     HL, HL
+100+  82E8 01 00 84             LD      BC, EXTERNAL_FONT_BIN112
+101+  82EB 09                   ADD     HL, BC
+102+  82EC 22 E7 83             LD      (Temp_Font_Ptr), HL
+103+  82EF
+104+  82EF 3E 08                LD      A, 8
+105+  82F1 32 E9 83             LD      (Char_Height_Counter), A
+106+  82F4
+107+  82F4              .line_render_loop:
+108+  82F4 3E 08                LD      A, 8
+109+  82F6 21 E9 83             LD      HL, Char_Height_Counter
+110+  82F9 96                   SUB     (HL)
+111+  82FA 32 EA 83             LD      (Current_Pixel_Line), A
+112+  82FD
+113+  82FD                      ; --- КАНОНИЧЕСКИЙ РАСЧЕТ АДРЕСА СТРОКИ ALONE CODER ---
+114+  82FD 3A E6 83             LD      A, (Temp_Y_Pos)
+115+  8300 47                   LD      B, A
+116+  8301
+117+  8301 78                   LD      A, B
+118+  8302 E6 18                AND     %00011000
+119+  8304 1F                   RRA
+120+  8305 1F                   RRA
+121+  8306 1F                   RRA
+122+  8307 F6 40                OR      %01000000               ; Базовый экранный сегмент $4000
+123+  8309 67                   LD      H, A
+124+  830A 3A EA 83             LD      A, (Current_Pixel_Line)
+125+  830D B4                   OR      H
+126+  830E 67                   LD      H, A
+127+  830F
+128+  830F 78                   LD      A, B
+129+  8310 E6 07                AND     %00000111
+130+  8312 CB 07                RLC     A
+131+  8314 CB 07                RLC     A
+132+  8316 CB 07                RLC     A
+133+  8318 CB 07                RLC     A
+134+  831A CB 07                RLC     A
+135+  831C 6F                   LD      L, A
+136+  831D
+137+  831D                      ; Читаем байт маски шрифта
+138+  831D E5                   PUSH    HL
+139+  831E 2A E7 83             LD      HL, (Temp_Font_Ptr)
+140+  8321 7E                   LD      A, (HL)
+141+  8322 23                   INC     HL
+142+  8323 22 E7 83             LD      (Temp_Font_Ptr), HL
+143+  8326 32 EB 83             LD      (Temp_Pixel_Byte), A
+144+  8329 E1                   POP     HL
+145+  832A
+146+  832A                      ; Горизонтальное распределение X по банкам памяти Pentagon 384
+147+  832A 3A E5 83             LD      A, (Temp_X_Pos)
+148+  832D FE 08                CP      8
+149+  832F 38 1A                JR      C, .in_side_lanes       ; X < 8  -> Левый бордюр (физически в RAM 1)
+150+  8331 FE 28                CP      40
+151+  8333 30 16                JR      NC, .in_side_lanes      ; X >= 40 -> Правый бордюр (физически в RAM 1)
+152+  8335
+153+  8335                      ; Центральная область экрана (Стандартная RAM 5, адреса $4000..$57FF)
+154+  8335 D6 08                SUB     8
+155+  8337 85                   ADD     A, L
+156+  8338 6F                   LD      L, A
+157+  8339
+158+  8339                      ; Переключаемся на RAM 5 для гарантированной чистой записи символов центрального экрана
+159+  8339 47                   LD      B, A
+160+  833A 3E 15                LD      A, #15
+161+  833C 01 FD 7F             LD      BC, #7FFD
+162+  833F ED 79                OUT     (C), A
+163+  8341 3A EB 83             LD      A, (Temp_Pixel_Byte)
+164+  8344 77                   LD      (HL), A
+165+  8345 3E 10                LD      A, #10
+166+  8347 ED 79                OUT     (C), A
+167+  8349 18 12                JR      .line_done
+168+  834B
+169+  834B              .in_side_lanes:
+170+  834B                      ; Боковые панели маппятся в RAM 1 на те же адреса развертки
+171+  834B FE 28                CP      40
+172+  834D 38 06                JR      C, .left_lane
+173+  834F D6 28                SUB     40
+174+  8351 C6 20                ADD     A, 32                   ; Смещение правого бордюра в структуре строки
+175+  8353 18 00                JR      .apply_side
+176+  8355              .left_lane:
+177+  8355                      ; Левый бордюр (0..7)
+178+  8355              .apply_side:
+179+  8355 85                   ADD     A, L
+180+  8356 6F                   LD      L, A
+181+  8357
+182+  8357                      ; Безопасный атомарный вывод в альтернативную банку ОЗУ
+183+  8357 3A EB 83             LD      A, (Temp_Pixel_Byte)
+184+  835A CD 69 83             CALL    Write_SideLane_Atomic
+185+  835D
+186+  835D              .line_done:
+187+  835D 21 E9 83             LD      HL, Char_Height_Counter
+188+  8360 35                   DEC     (HL)
+189+  8361 C2 F4 82             JP      NZ, .line_render_loop
+190+  8364
+191+  8364 E1                   POP     HL
+192+  8365 D1                   POP     DE
+193+  8366 C1                   POP     BC
+194+  8367 F1                   POP     AF
+195+  8368 C9                   RET
+196+  8369
+197+  8369              ; --- АТОМАРНЫЙ ВЫВОД В БОКОВЫЕ ПАНЕЛИ (RAM 1) ---
+198+  8369              Write_SideLane_Atomic:
+199+  8369 C5                   PUSH    BC
+200+  836A F5                   PUSH    AF
+201+  836B
+202+  836B 3E 11                LD      A, #11                  ; Включаем RAM 1 (Боковой экран)
+203+  836D 01 FD 7F             LD      BC, #7FFD
+204+  8370 ED 79                OUT     (C), A
+205+  8372
+206+  8372 F1                   POP     AF
+207+  8373 77                   LD      (HL), A
+208+  8374
+209+  8374 3E 10                LD      A, #10                  ; Возвращаем стабильное ядро RAM 0
+210+  8376 01 FD 7F             LD      BC, #7FFD
+211+  8379 ED 79                OUT     (C), A
+212+  837B
+213+  837B C1                   POP     BC
+214+  837C C9                   RET
+215+  837D
+# file closed: display_384.asm
+196   837D                      INCLUDE "src/graphics_384.asm"
+# file opened: graphics_384.asm
+  1+  837D              ; =========================================================================
+  2+  837D              ; PERFECT COMMANDER 112 — ГЕOМЕТРИЯ ПСЕВДOГРAФИКИ СТЕНДA 384x304
+  3+  837D              ; МОДУЛЬ: src/graphics_384.asm (МОНОХРОМНЫЙ ВЫВОД РАМОК)
+  4+  837D              ; =========================================================================
+  5+  837D
+  6+  837D              DrawHeader_384x304:
+  7+  837D C5                   PUSH    BC
+  8+  837E D5                   PUSH    DE
+  9+  837F E5                   PUSH    HL
+ 10+  8380
+ 11+  8380 16 00                LD      D, 0
+ 12+  8382              .loop_y:
+ 13+  8382 0E 00                LD      C, 0
+ 14+  8384              .loop_x:
+ 15+  8384 C5                   PUSH    BC
+ 16+  8385 D5                   PUSH    DE
+ 17+  8386 3E 20                LD      A, 32                   ; Символ пробела для чистой заливки
+ 18+  8388 F5                   PUSH    AF
+ 19+  8389 CD C7 82             CALL    PrintChar_384x304
+ 20+  838C F1                   POP     AF
+ 21+  838D D1                   POP     DE
+ 22+  838E C1                   POP     BC
+ 23+  838F
+ 24+  838F 0C                   INC     C                       ; Линейный инкремент на 1 байт
+ 25+  8390 79                   LD      A, C
+ 26+  8391 FE 30                CP      48                      ; Ширина экрана — 48 знакомест (байт)
+ 27+  8393 20 EF                JR      NZ, .loop_x
+ 28+  8395
+ 29+  8395 14                   INC     D
+ 30+  8396 7A                   LD      A, D
+ 31+  8397 FE 02                CP      2                       ; Высота шапки — 2 знакоместа
+ 32+  8399 20 E7                JR      NZ, .loop_y
+ 33+  839B
+ 34+  839B E1                   POP     HL
+ 35+  839C D1                   POP     DE
+ 36+  839D C1                   POP     BC
+ 37+  839E C9                   RET
+ 38+  839F
+ 39+  839F              DrawPanels_384x304:
+ 40+  839F C5                   PUSH    BC
+ 41+  83A0 D5                   PUSH    DE
+ 42+  83A1 E5                   PUSH    HL
+ 43+  83A2
+ 44+  83A2                      ; Отрисовка верхней горизонтальной рамки панелей (строка Y = 2)
+ 45+  83A2 0E 00                LD      C, 0
+ 46+  83A4              .h_loop1:
+ 47+  83A4 C5                   PUSH    BC
+ 48+  83A5 D5                   PUSH    DE
+ 49+  83A6 16 02                LD      D, 2
+ 50+  83A8 3E 2D                LD      A, 45                   ; Код символа '-' в стандартном ASCII
+ 51+  83AA F5                   PUSH    AF
+ 52+  83AB CD C7 82             CALL    PrintChar_384x304
+ 53+  83AE F1                   POP     AF
+ 54+  83AF D1                   POP     DE
+ 55+  83B0 C1                   POP     BC
+ 56+  83B1 0C                   INC     C
+ 57+  83B2 79                   LD      A, C
+ 58+  83B3 FE 30                CP      48
+ 59+  83B5 20 ED                JR      NZ, .h_loop1
+ 60+  83B7
+ 61+  83B7                      ; Отрисовка нижней горизонтальной границы панелей (строка Y = 35)
+ 62+  83B7 0E 00                LD      C, 0
+ 63+  83B9              .h_loop2:
+ 64+  83B9 C5                   PUSH    BC
+ 65+  83BA D5                   PUSH    DE
+ 66+  83BB 16 23                LD      D, 35
+ 67+  83BD 3E 2D                LD      A, 45
+ 68+  83BF F5                   PUSH    AF
+ 69+  83C0 CD C7 82             CALL    PrintChar_384x304
+ 70+  83C3 F1                   POP     AF
+ 71+  83C4 D1                   POP     DE
+ 72+  83C5 C1                   POP     BC
+ 73+  83C6 0C                   INC     C
+ 74+  83C7 79                   LD      A, C
+ 75+  83C8 FE 30                CP      48
+ 76+  83CA 20 ED                JR      NZ, .h_loop2
+ 77+  83CC
+ 78+  83CC                      ; Отрисовка центрального вертикального разделителя (Колонка X = 24 байт)
+ 79+  83CC 16 02                LD      D, 2
+ 80+  83CE              .v_loop:
+ 81+  83CE D5                   PUSH    DE
+ 82+  83CF C5                   PUSH    BC
+ 83+  83D0 0E 18                LD      C, 24
+ 84+  83D2 3E 7C                LD      A, 124                  ; Код символа '|' в стандартном ASCII
+ 85+  83D4 F5                   PUSH    AF
+ 86+  83D5 CD C7 82             CALL    PrintChar_384x304
+ 87+  83D8 F1                   POP     AF
+ 88+  83D9 C1                   POP     BC
+ 89+  83DA D1                   POP     DE
+ 90+  83DB 14                   INC     D
+ 91+  83DC 7A                   LD      A, D
+ 92+  83DD FE 23                CP      35                      ; Высота панелей — до 35 строки
+ 93+  83DF 20 ED                JR      NZ, .v_loop
+ 94+  83E1
+ 95+  83E1 E1                   POP     HL
+ 96+  83E2 D1                   POP     DE
+ 97+  83E3 C1                   POP     BC
+ 98+  83E4 C9                   RET
+ 99+  83E5
+# file closed: graphics_384.asm
+197   83E5
+198   83E5              ; --- НЕПРЕРЫВНАЯ ЛИНЕЙНАЯ СЕКЦИЯ ПЕРЕМЕННЫХ И ШРИФТОВ ---
+199   83E5 00           Temp_X_Pos:             DB 0
+200   83E6 00           Temp_Y_Pos:             DB 0
+201   83E7 00 00        Temp_Font_Ptr:          DW 0
+202   83E9 00           Char_Height_Counter:    DB 0
+203   83EA 00           Current_Pixel_Line:     DB 0
+204   83EB 00           Temp_Pixel_Byte:        DB 0
+205   83EC 00 00        Temp_Clear_SP:          DW 0
+206   83EE
+207   83EE 00 00 00...          ALIGN 256
+208   8400              EXTERNAL_FONT_BIN112:
+209   8400                      INCBIN "src/font.bin"           ; Встроенный бинарный шрифт 8х8 (768 байт)
+210   8700
+211   8700              ProgramEnd112:
+212   8700
+213   8700              ; =========================================================================
+214   8700              ; СБОРОЧНЫЙ КАНOНИЧЕСКИЙ BASIC-ЗАГРУЗЧИК (СТАРТ ИЗ СЕКТOРА TR-DOS)
+215   8700              ; =========================================================================
+216   8700                      ORG $B000
+217   B000              CLEAR       EQU $FD
+218   B000              RANDOMIZE   EQU $F9
+219   B000              USR         EQU $C0
+220   B000              REM         EQU $EA
+221   B000
+222   B000              basic_loader:
+223   B000 00 0A                DB      0, 10
+224   B002 0D 00                DW      l10_len
+225   B004              l10:
+226   B004 FD 33 32 37          DB      CLEAR, "32767", $0E, 0, 0
+226   B008 36 37 0E 00
+226   B00C 00
+227   B00D FF 7F                DW      32767
+228   B00F 00 0D                DB      0, $0D
+229   B011              l10_len EQU     $-l10
+230   B011
+231   B011 00 14                DB      0, 20
+232   B013 2A 00                DW      l20_len
+233   B015              l20:
+234   B015 F9 C0 31 35          DB      RANDOMIZE, USR, "15619", $0E, 0, 0
+234   B019 36 31 39 0E
+234   B01D 00 00
+235   B01F 03 3D                DW      15619
+236   B021 00                   DB      0
+237   B022 3A EA 3A             DB      $3A, REM, $3A
+238   B025 4C 4F 41 44          DB "LOAD ", 34, "proj112", 34, " CODE 32768", $0D
+238   B029 20 22 70 72
+238   B02D 6F 6A 31 31
+238   B031 32 22 20 43
+238   B035 4F 44 45 20
+238   B039 33 32 37 36
+238   B03D 38 0D
+239   B03F              l20_len EQU     $-l20
+240   B03F
+241   B03F 00 1E                DB      0, 30
+242   B041 0E 00                DW l30_len
+243   B043              l30:
+244   B043 F9 C0 33 32          DB      RANDOMIZE, USR, "32768", $0E, 0, 0
+244   B047 37 36 38 0E
+244   B04B 00 00
+245   B04D 00 80                DW      32768
+246   B04F 00 0D                DB      0, $0D
+247   B051              l30_len EQU     $-l30
+248   B051              basic_loader_end:
+249   B051
+250   B051                      SAVETRD "project112.TRD", "proj112.B", basic_loader, basic_loader_end - basic_loader, 10
+251   B051                      SAVETRD "project112.TRD", "proj112.C", $8000, ProgramEnd112 - $8000
+252   B051
+# file closed: main.asm
