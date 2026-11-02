@@ -185,7 +185,7 @@ PrintChar112:
 
         LD      A,(Temp_Character112)
         CP      32
-        JR      C,PrintCharDone112
+        JP      C,PrintCharDone112
         SUB     32
         LD      L,A
         LD      H,0
