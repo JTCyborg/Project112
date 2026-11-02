@@ -19,6 +19,9 @@
 ; Keep this block below 32 bytes and do not move it.
 ; -------------------------------------------------------------------------
 Project112Entry:
+        ; First instruction-level proof that BASIC actually entered $8000.
+        LD      A,'Z'
+        OUT     (#EF),A
         JP      Init_Z80_System112
 
 
@@ -399,7 +402,7 @@ ColorPlaneIndex112:    DB 0
 ColorByte112:          DB 0
 
 ; Bump this identifier whenever a test image/source revision changes.
-Debug_BuildVersion112: DEFM "P112 BUILD ATM710-NATIVE-20261102.03",13,10,0
+Debug_BuildVersion112: DEFM "P112 BUILD ATM710-ENTRY-20261103.01",13,10,0
 Debug_RuntimeStart112: DEFM "PROJECT112 ATM710 START",13,10,0
 Debug_ScreenDrawn112:  DEFM "ATM SCREEN DRAWN",13,10,0
 Debug_Ready112:        DEFM "ATM VIDEO TEST READY",13,10,0
