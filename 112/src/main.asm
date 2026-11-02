@@ -117,8 +117,25 @@ ClearVideoMemory112:
         LDIR
         RET
 
+; Clear the two additional 16-color planes in fixed RAM bank 2.
+Clear16ColorPlanes112:
+        LD      HL,$C000
+        LD      DE,$C001
+        LD      BC,$17FF
+        LD      (HL),0
+        LDIR
+        LD      HL,$E000
+        LD      DE,$E001
+        LD      BC,$17FF
+        LD      (HL),0
+        LDIR
+        RET
+
 DrawDemoScreen:
         CALL    ClearVideoMemory112
+        LD      A,(Current_Mode_Index)
+        CP      3
+        CALL    Z,Clear16ColorPlanes112
 
         ; Select the actual character grid for the active video mode.
         LD      A,(Current_Mode_Index)
@@ -253,6 +270,8 @@ GlyphLineLoop112:
         PUSH    HL
         ; Recalculate destination for the selected bitmap organization.
         LD      A,(Current_Mode_Index)
+        CP      3
+        JR      Z,PrintGlyph16Color112
         CP      1
         JR      Z,PrintGlyph512_112
         ; Standard 256x192 bitmap (also the pixel plane of A4B).
@@ -276,6 +295,77 @@ GlyphLineLoop112:
         OR      L
         LD      L,A
         JR      PrintGlyphStore112
+
+PrintGlyph16Color112:
+        ; 16-color mode stores four 2-pixel color bytes per character scanline.
+        ; Plane bases are C000, 4000, E000 and 6000 (6144 bytes each).
+        LD      A,(Temp_Y112)
+        ADD     A,A
+        ADD     A,A
+        ADD     A,A
+        LD      B,A
+        LD      A,(GlyphLine112)
+        ADD     A,B
+        LD      B,A
+        LD      A,B
+        RRCA
+        RRCA
+        RRCA
+        AND     $1F
+        LD      H,A
+        LD      A,B
+        ADD     A,A
+        ADD     A,A
+        ADD     A,A
+        ADD     A,A
+        ADD     A,A
+        LD      L,A
+        LD      A,(Temp_X112)
+        ADD     A,L
+        LD      L,A
+        JR      NC,ColorOffsetReady112
+        INC     H
+ColorOffsetReady112:
+        LD      (ColorOffset112),HL
+        LD      A,(Temp_FontByte112)
+        LD      (ColorShiftByte112),A
+        XOR     A
+        LD      (ColorPlaneIndex112),A
+ColorPairLoop112:
+        LD      A,(ColorShiftByte112)
+        RLCA
+        RLCA
+        LD      (ColorShiftByte112),A
+        AND     3
+        LD      E,A
+        LD      D,0
+        LD      HL,ColorPairValues112
+        ADD     HL,DE
+        LD      A,(HL)
+        LD      (ColorByte112),A
+
+        LD      A,(ColorPlaneIndex112)
+        ADD     A,A
+        LD      E,A
+        LD      D,0
+        LD      HL,ColorPlaneBases112
+        ADD     HL,DE
+        LD      E,(HL)
+        INC     HL
+        LD      D,(HL)
+        EX      DE,HL
+        LD      DE,(ColorOffset112)
+        ADD     HL,DE
+        LD      A,(ColorByte112)
+        LD      (HL),A
+
+        LD      A,(ColorPlaneIndex112)
+        INC     A
+        LD      (ColorPlaneIndex112),A
+        CP      4
+        JR      NZ,ColorPairLoop112
+        POP     HL
+        JR      PrintGlyphLineStored112
 
 PrintGlyph512_112:
         ; 512x192: even and odd byte columns are stored in separate
@@ -316,16 +406,18 @@ PrintGlyphStore112:
         LD      A,(Temp_FontByte112)
         LD      (HL),A
         POP     HL
-
+PrintGlyphLineStored112:
         LD      A,(GlyphLine112)
         INC     A
         LD      (GlyphLine112),A
         CP      8
         JR      NZ,GlyphLineLoop112
 
-        ; 512x192 is monochrome: it has no Spectrum attribute plane.
+        ; 512x192 and 16-color modes have no Spectrum attribute plane.
         LD      A,(Current_Mode_Index)
         CP      1
+        JR      Z,PrintCharDone112
+        CP      3
         JR      Z,PrintCharDone112
 
         ; Character attribute: bright white ink on black paper for every glyph.
@@ -382,6 +474,10 @@ Demo_Row112:           DB 0
 Demo_Column112:        DB 0
 Grid_Width112:         DB 32
 Grid_Height112:        DB 24
+ColorOffset112:        DW 0
+ColorShiftByte112:    DB 0
+ColorPlaneIndex112:   DB 0
+ColorByte112:         DB 0
 
 Debug_RuntimeStart112: DEFM "P112 RUNNING",13,10,0
 Debug_ModeApply112:    DEFM "VIDEO MODE APPLY",13,10,0
@@ -418,6 +514,13 @@ Mode_Hardware_Bytes:
 
 Mode_Border_Colors:
         DB      1,2,4,5,6
+
+; Index is the two adjacent glyph pixels: left in bit 1, right in bit 0.
+; White=15, black=0, encoded with Pentagon 16-color component wiring.
+ColorPairValues112:
+        DB      $00,$B8,$47,$FF
+ColorPlaneBases112:
+        DW      $C000,$4000,$E000,$6000
 
         ALIGN   256
 Font88_112:
