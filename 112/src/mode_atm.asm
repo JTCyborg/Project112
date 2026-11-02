@@ -15,7 +15,8 @@ ClearVideoMemory_ATM112:
         LD      HL,$4000
         LD      DE,$4001
         LD      BC,$3FFF
-        LD      (HL),0
+        XOR     A
+        LD      (HL),A
         LDIR
         LD      HL,$C000
         LD      DE,$C001
