@@ -187,10 +187,30 @@ GridGeometry384_112:
         LD      (Grid_Height112),A
 GridGeometryReady112:
 
-        ; Draw every cell. The final row and column are explicit rulers.
+        ; Reserve row 0 for an explicit active-mode label.
+        LD      HL,Text_ModePrefix112
+        LD      C,0
+        LD      D,0
+        CALL    PrintString112
+        LD      A,(Current_Mode_Index)
+        ADD     A,A
+        LD      E,A
+        LD      D,0
+        LD      HL,Mode_Name_Pointers
+        ADD     HL,DE
+        LD      E,(HL)
+        INC     HL
+        LD      D,(HL)
+        EX      DE,HL
+        LD      C,6
+        LD      D,0
+        CALL    PrintString112
+
+        ; Draw the test area. Row 0 is the mode label; the last row
+        ; and last column are rulers with a zero marker every 10 cells.
         LD      A,32
         LD      (Demo_Character112),A
-        XOR     A
+        LD      A,1
         LD      (Demo_Row112),A
 DemoRowLoop112:
         XOR     A
@@ -201,7 +221,8 @@ DemoColumnLoop112:
         LD      A,(Demo_Row112)
         LD      D,A
 
-        ; Right edge = vertical ruler, bottom edge = horizontal ruler.
+        ; The tenth, twentieth, thirtieth... ruler positions are marked '0'.
+        ; All other horizontal ruler cells are '-', vertical cells are '|'.
         LD      A,(Demo_Row112)
         LD      B,A
         LD      A,(Grid_Height112)
@@ -217,17 +238,26 @@ DemoColumnLoop112:
         LD      A,(Demo_Character112)
         JR      DrawGridCell112
 DrawBottomRuler112:
-        LD      A,'-'
-        LD      B,C
-        LD      A,(Grid_Width112)
-        DEC     A
-        CP      B
+        LD      A,(Demo_Column112)
+        INC     A
+        LD      B,A
+        LD      A,10
+        LD      C,A
+        LD      A,B
+        CALL    Modulo10_112
+        OR      A
         LD      A,'-'
         JR      NZ,DrawGridCell112
-        LD      A,'+'
+        LD      A,'0'
         JR      DrawGridCell112
 DrawRightRuler112:
+        LD      A,(Demo_Row112)
+        INC     A
+        CALL    Modulo10_112
+        OR      A
         LD      A,'|'
+        JR      NZ,DrawGridCell112
+        LD      A,'0'
 DrawGridCell112:
         CALL    PrintChar112
 
@@ -256,6 +286,19 @@ GridCharReady112:
         JR      NZ,DemoRowLoop112
         LD      HL,Debug_ScreenDrawn112
         CALL    DebugPrintString112
+        RET
+
+; Return A = A modulo 10. Preserves BC and DE.
+Modulo10_112:
+        PUSH    BC
+        LD      B,10
+Modulo10Loop112:
+        CP      B
+        JR      C,Modulo10Done112
+        SUB     B
+        JR      Modulo10Loop112
+Modulo10Done112:
+        POP     BC
         RET
 
 ; Print zero-terminated string at C=character column, D=character row.
@@ -658,10 +701,7 @@ Debug_ScreenDrawn112:  DEFM "SCREEN DRAWN",13,10,0
 Debug_Ready112:        DEFM "VIDEO TEST READY",13,10,0
 Debug_SpacePressed112: DEFM "SPACE PRESSED",13,10,0
 
-Text_Title112:         DEFM "PROJECT112 VIDEO MODE TEST",0
-Text_Space112:         DEFM "PRESS SPACE TO CHANGE MODE",0
-Text_Mode112:          DEFM "ACTIVE #EFF7 MODE:",0
-Text_Charset112:       DEFM "ASCII TEST: 32-127",0
+Text_ModePrefix112:   DEFM "MODE: ",0
 
 Mode_Name_Pointers:
         DW ModeName_Standard112
@@ -671,9 +711,9 @@ Mode_Name_Pointers:
         DW ModeName_384112
 
 ModeName_Standard112:  DEFM "STANDARD 256x192",0
-ModeName_512112:       DEFM "512x192 EXTENDED",0
-ModeName_HardwareMC112:DEFM "HARDWARE MULTICOLOR (A4B)",0
-ModeName_16Color112:   DEFM "16-COLOR / 2 PIXELS PER BYTE",0
+ModeName_512112:       DEFM "512x192",0
+ModeName_HardwareMC112:DEFM "A4B MULTICOLOR",0
+ModeName_16Color112:   DEFM "16-COLOR 2PX/BYTE",0
 ModeName_384112:       DEFM "PENTAGON 384x304",0
 
 ; UnrealSpeccy / Pentagon 1024 mode bits:
