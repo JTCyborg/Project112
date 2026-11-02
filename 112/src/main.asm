@@ -307,11 +307,11 @@ GlyphLineLoop112:
         ; Recalculate destination for the selected bitmap organization.
         LD      A,(Current_Mode_Index)
         CP      4
-        JR      Z,PrintGlyph384_112
+        JP      Z,PrintGlyph384_112
         CP      3
-        JR      Z,PrintGlyph16Color112
+        JP      Z,PrintGlyph16Color112
         CP      1
-        JR      Z,PrintGlyph512_112
+        JP      Z,PrintGlyph512_112
         ; Standard 256x192 bitmap (also the pixel plane of A4B).
         LD      HL,0
         LD      A,(Temp_Y112)
@@ -475,7 +475,7 @@ PrintGlyphLineStored112:
         INC     A
         LD      (GlyphLine112),A
         CP      8
-        JR      NZ,GlyphLineLoop112
+        JP      NZ,GlyphLineLoop112
 
         ; 512x192 and 16-color modes have no Spectrum attribute plane.
         LD      A,(Current_Mode_Index)
