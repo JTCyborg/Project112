@@ -27,12 +27,18 @@ Project112Entry:
         JP      Init_Z80_System112
 
 ATM_ModeSwitch112:
-        LD      BC,$FF77
+        ; A9=0 is DOSEN enabled. #FD77 is required when the program
+        ; executes from the TR-DOS-loaded RAM image.
+        LD      BC,$FD77
         OUT     (C),A
         JP      ATM_ModeReentry112
 
 ATM_ModeReentry112:
         LD      SP,$BFFF
+        ; Visible proof of each transition: border colors 1,2,3,4.
+        LD      A,(Current_Mode_Index)
+        INC     A
+        OUT     ($FE),A
         CALL    DrawDemoScreen
         LD      HL,Debug_Ready112
         CALL    DebugPrintString112
