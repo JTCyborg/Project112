@@ -1,31 +1,32 @@
 # Project112
-ZX Spectrum Pentagon 1024 project
+ATM Turbo 2+ v7.10 video-mode demonstrator (migration in progress).
 
-## UnrealSpeccy configuration for the 384x304 test
+## UnrealSpeccy configuration
 
-The fifth test mode writes the complete 384x304 Pentagon display area. UnrealSpeccy must be configured to expose the full border area; setting port #EFF7 to $40 does not change the host display geometry.
+The repository unreal.ini is configured for ATM Turbo 2+ v7.10:
+- HIMEM=ATM710
+- RAMSize=1024
+- Preset=ATM1_2_3.5MHz
+- Border=small
+- AtmMemSwap=0
+- UsePalette=1
+- ROMSET=ATM2
 
-Use the following settings in the active UnrealSpeccy configuration:
+Restart UnrealSpeccy after changing the configuration. The selected ATM BIOS file must exist in the emulator directory (ATM2=bios_1_07_13.rom in this configuration).
 
-```ini
-[MISC]
-HIMEM=PENTAGON
-RAMSize=1024
-EFF7mask=0
+## ATM Turbo 2+ video modes
 
-[ULA]
-Preset=PENTAGON
-PRESET.PENTAGON=71680,17989,224,50,32,0,0,0,0,0,320,240,24,32,384,304,48,64
+The target hardware provides four principal display modes:
+1. Sinclair 256x192
+2. 640x200 hardware multicolor
+3. 320x200 EGA, 16 colors
+4. 80x25 hardware text
 
-[VIDEO]
-Border=wide
-```
+The mode register values in ATM system port #77 are 3, 2, 0 and 6 respectively. See 112/src/video_mode_control.asm.
 
-Important:
-- `Border=wide` selects `conf.bordersize=2`, which makes `temp.scx=384`.
-- `PRESET.PENTAGON` must set `mcx_full=384` and `mcy_full=304`. The stock preset's `mcy_full=288` is insufficient for this test.
-- `EFF7mask=0` allows the program to set D6 (384x304).
-- Restart UnrealSpeccy after changing the configuration, then load `project112.TRD`.
-- Do not change the address routines in `112/src/mode_384.asm` to compensate for a 320x240 or 384x288 host display: that would make the Pentagon memory layout incorrect.
+**Migration status:** emulator configuration and ATM mode-code table are committed. The current main.asm and legacy mode_*.asm modules still contain Pentagon-specific memory mapping/renderers. Do not treat the program as a working ATM demo until the ATM memory mapping, pixel/attribute renderers, text-mode output, and safe mode-transition routine are completed. The exact remaining work is tracked in SCENARIO.md.
 
-The other four test modes remain available; the wide border setting changes the emulator's visible border area, not the hardware mode selected by the test program.
+## Hardware references
+
+- ATM Turbo 2+ technical description, PCB 7.00-7.10: https://zxpress.ru/ru/ezines/inferno/02/tehnicheskoe-opisanie-personalnogo-kompyutera-atm-turbo-2-struktura-pamyati-porty-vvoda-vyvoda
+- Four ATM display modes and screen-memory organization: https://zxpress.ru/en/ezines/adventurer/01/detailed-overview-of-atm-turbo-2-video-modes-four-main-screens-with-different-resolutions-and

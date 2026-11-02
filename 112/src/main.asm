@@ -410,6 +410,7 @@ PrintCharDone112:
         INCLUDE "src/mode_a4b.asm"
         INCLUDE "src/mode_16color.asm"
         INCLUDE "src/mode_384.asm"
+        INCLUDE "src/driver_alco384.asm"
         INCLUDE "src/video_mode_control.asm"
         INCLUDE "src/keyboard.asm"
 

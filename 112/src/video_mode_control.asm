@@ -1,87 +1,63 @@
 ; =========================================================================
-; PROJECT112 — VIDEO MODE CONTROL PIPELINE (UNREAL_SPECCY SYNCED)
-; Cyclic mode selection, hardware register and paging setup.
+; PROJECT112 — ATM TURBO 2+ v7.10 VIDEO MODE CONTROL
+;
+; ATM system port: #FF77 (full I/O address).
+; The low byte #77 selects the system port; BC addressing is required
+; because the high byte of the I/O address must remain #FF while A carries
+; the port data. OUT (#77),A is NOT equivalent: it forms A:#77.
+;
+; Mode bits D2..D0:
+;   3 = Sinclair 256x192
+;   2 = 640x200 hardware multicolor
+;   0 = 320x200 EGA, 16 colors
+;   6 = 80x25 hardware text
+;
+; D3=0: 3.5 MHz; D4=0 reserved; D5=0 HSYNC IRQ disabled;
+; D6=0 keep 8031 keyboard controller enabled; D7=1 on v7.10.
+;
+; Important: the actual mode transition instruction sequence is isolated
+; in a <=32-byte routine aligned to 256 bytes. Do not move this stub or
+; expand it without rechecking the ATM address-line aliasing restriction.
 ; =========================================================================
 
 SwitchToNextVideoMode:
         LD      A,(Current_Mode_Index)
         INC     A
         CP      Mode_Count
-        JR      C,ModeIndexReady112
+        JR      C,ATMModeIndexReady112
         XOR     A
-ModeIndexReady112:
+ATMModeIndexReady112:
         LD      (Current_Mode_Index),A
-        CALL    ApplyVideoMode
+        LD      L,A
+        LD      H,0
+        LD      DE,ATM_Mode_Bytes112
+        ADD     HL,DE
+        LD      A,(HL)
+        OR      $80
+        CALL    ATM_ModeSwitch112
         CALL    DrawDemoScreen
         RET
 
 ApplyVideoMode:
-        LD      HL,Debug_ModeApply112
-        CALL    DebugPrintString112
-        
-        ; 1. Настройка и коммутация конфигурационного порта $EFF7
         LD      A,(Current_Mode_Index)
         LD      L,A
         LD      H,0
-        LD      DE,Mode_Hardware_Bytes
+        LD      DE,ATM_Mode_Bytes112
         ADD     HL,DE
         LD      A,(HL)
-        LD      (Current_Mode_Byte),A
-        LD      BC,$EFF7
+        OR      $80
+        JP      ATM_ModeSwitch112
+
+; This routine is deliberately kept short and page-aligned.
+        ALIGN   256
+ATM_ModeSwitch112:
+        LD      BC,$FF77
         OUT     (C),A
-
-        ; 2. Распределение системных страниц памяти через порт $7FFD
-        LD      A,(Current_Mode_Index)
-        CP      3                       ; Режим 3: 16-Color
-        JR      Z,.init_16color_pages
-        CP      4                       ; Режим 4: Pentagon 384x304
-        JR      Z,.init_384_pages
-
-        ; Стандартная конфигурация для режимов 0, 1, 2 (RAM 5)
-        LD      A,$10
-        JR      ModePageReady112
-
-.init_16color_pages:
-        ; 16-color: page 5 остаётся в $4000 (bit 3 = 0),
-        ; page 4 отображается в $C000. Так CPU-адреса плоскостей
-        ; C000/4000/E000/6000 совпадают с физической раскладкой
-        ; UnrealSpeccy p4bpp: temp.base = page 5, смещения
-        ; -$4000 / 0 / -$2000 / +$2000 соответственно.
-        LD      A,$04
-        JR      ModePageReady112
-
-.init_384_pages:
-        ; Pentagon 384x304 uses RAM page 4 at $C000 and fixed page 5 at $4000.
-        LD      A,$04
-
-ModePageReady112:
-        LD      BC,$7FFD
-        OUT     (C),A
-
-        ; 3. Установка цвета бордюра через порт $FE
-        LD      A,(Current_Mode_Index)
-        LD      L,A
-        LD      H,0
-        LD      DE,Mode_Border_Colors
-        ADD     HL,DE
-        LD      A,(HL)
-        OUT     ($FE),A
         RET
 
-
-; Mode-control constants and lookup tables.
-Mode_Count             EQU 5
-Current_Mode_Byte:     DB 0
-Debug_ModeApply112:    DEFM "VIDEO MODE APPLY",13,10,0
-
-; UnrealSpeccy / Pentagon 1024 mode bits:
-; D0=16-color, D1=512x192, D5=hardware multicolor, D6=384x304.
-Mode_Hardware_Bytes:
-        DB      $00                     ; Mode 0: Standard 256x192
-        DB      $02                     ; Mode 1: 512x192
-        DB      $20                     ; Mode 2: Hardware Multicolor
-        DB      $01                     ; Mode 3: Pentagon 16-Color
-        DB      $40                     ; Mode 4: Pentagon 384x304
-
-Mode_Border_Colors:
-        DB      1,2,4,5,6
+Mode_Count             EQU 4
+ATM_Mode_Bytes112:
+        DB      3                       ; 0: Sinclair 256x192
+        DB      2                       ; 1: 640x200 hardware multicolor
+        DB      0                       ; 2: 320x200 EGA 16-color
+        DB      6                       ; 3: 80x25 hardware text
