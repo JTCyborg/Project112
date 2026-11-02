@@ -47,7 +47,7 @@ Init_Z80_System112:
 
         ; Sinclair 256x192 = RG0:RG1:RG2 = 1:1:0 (RG=3).
         LD      A,$C3
-        LD      BC,$FD77
+        LD      BC,$FF77
         OUT     (C),A
 
         XOR     A
