@@ -1,7 +1,7 @@
 ; =========================================================================
 ; PROJECT112 — VIDEO MODE DEMONSTRATOR
 ; Target: Pentagon 1024 / UnrealSpeccy
-; Space: cycle video modes. Esc: return to TR-DOS (RST 0).
+; Space: cycle video modes.
 ; Character test: ASCII 32..127, 16 columns x 6 rows.
 ; =========================================================================
 
@@ -26,14 +26,13 @@ Init_Z80_System112:
         CALL    DrawDemoScreen
 
 MainLoop112:
-        ; Space is bit 0 of the $7FFE keyboard half-row (active low).
+        ; Space is bit 4 of the $7FFE keyboard half-row (active low).
         LD      BC,$7FFE
         IN      A,(C)
         BIT     4,A
         JR      Z,SpacePressed112
 
-        ; ESC is bit 0 of the $7FFE? Keep this tester single-key and
-        ; deterministic: Space advances one mode after key release.
+        ; Space advances one mode after key release.
         JR      MainLoop112
 
 SpacePressed112:
@@ -136,8 +135,6 @@ DemoRowLoop112:
         LD      A,0
         LD      (Demo_Column112),A
 DemoColumnLoop112:
-        LD      A,(Demo_Character112)
-        LD      C,A
         LD      A,(Demo_Column112)
         LD      C,A
         LD      A,(Demo_Row112)
@@ -202,29 +199,6 @@ PrintChar112:
         XOR     A
         LD      (GlyphLine112),A
 GlyphLineLoop112:
-        ; Spectrum bitmap address:
-        ; H = $40 | (character-row & $18) | glyph-line
-        ; L = ((character-row & 7) << 5) | character-column
-        LD      A,(Temp_Y112)
-        AND     $18
-        OR      $40
-        LD      H,A
-        LD      A,(GlyphLine112)
-        OR      H
-        LD      H,A
-
-        LD      A,(Temp_Y112)
-        AND     7
-        RLCA
-        RLCA
-        RLCA
-        RLCA
-        RLCA
-        LD      L,A
-        LD      A,(Temp_X112)
-        OR      L
-        LD      L,A
-
         LD      HL,(FontPointer112)
         LD      A,(HL)
         LD      (Temp_FontByte112),A
