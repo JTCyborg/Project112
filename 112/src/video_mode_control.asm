@@ -1,6 +1,6 @@
 ; =========================================================================
 ; PROJECT112 — ATM TURBO 2+ v7.10 VIDEO MODE CONTROL
-; BASIC enters ATM 640x200 before loading the executable.
+; BASIC enters ATM 640x200 before loading the executable. A8=0 on #FC77 keeps the ATM page manager disabled, so 7FFD selects the visible RAM pages.
 ; Space cycles through ATM modes 640x200, EGA 320x200 and 80x25.
 ; All three modes have D0=0, so no RAM content permutation is triggered.
 ; Sinclair mode (D0=1) is excluded until a ROM-mediated transition/reload
@@ -20,7 +20,7 @@ ATMModeIndexReady112:
         ADD     HL,DE
         LD      A,(HL)
         OR      $80
-        LD      BC,$FD77
+        LD      BC,$FC77
         OUT     (C),A
         LD      HL,Debug_ModeApplied112
         CALL    DebugPrintString112
