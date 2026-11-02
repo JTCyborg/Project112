@@ -1,28 +1,25 @@
 @echo off
 rem =========================================================================
-rem PERFECT COMMANDER 112 — АВТОМАТИЗИРОВАННЫЙ СБОРЩИК И КАРТОГРАФ ПАМЯТИ
-rem =========================================================================
-rem Ключи sjasmplus:
-rem   --dirbol        - строгий синтаксис (инструкции с начала строки)
-rem   --lst=list.txt  - генерация сквозного потактового листинга пассов
-rem   --sym=map.txt   - генерация точной карты адресов всех глобальных меток
+rem PROJECT112 — ATM TURBO 2+ v7.10 VIDEO MODE TEST BUILD
+rem Run this script from the 112 directory.
 rem =========================================================================
 
-echo [BUILD] Запуск компиляции проекта Perfect Commander 112...
+echo [BUILD] Assembling Project112 for ATM Turbo 2+ v7.10...
 tools\sjasmplus.exe --dirbol --lst=list.txt --sym=map.txt src/main.asm
 
 if errorlevel 1 goto :BUILD_FAILED
 
 echo.
-echo [SUCCESS] Сборка успешно завершена! (Pass 3 complete, 0 errors).
-echo [MAP] Файл карты памяти сохранен в: map.txt
-echo [LST] Файл сквозного листинга сохранен в: list.txt
+echo [SUCCESS] Assembly completed.
+echo [OUTPUT] project112.TRD
+echo [MAP]    map.txt
+echo [LIST]   list.txt
 goto :END
 
 :BUILD_FAILED
 echo.
-echo [ERROR] Крах сборки! SjASMPlus обнаружил критические ошибки.
-echo [ERROR] Изучите последние строки файла list.txt для поиска коллизий.
+echo [ERROR] SjASMPlus reported an assembly error.
+echo [ERROR] Check list.txt for the failing source line.
 pause
 exit /b 1
 
