@@ -402,9 +402,9 @@ Print384YReady112:
         JP      PrintGlyphLineStored112
 
 PrintGlyph16Color112:
-        ; Pentagon 16col: one byte encodes two adjacent pixels.
-        ; Each scanline has 128 bytes, split into four 32-byte banks.
-        ; A character is 8 pixels wide, therefore it occupies four bytes.
+        ; Pentagon 16col stores two adjacent pixels in one byte.
+        ; Four consecutive bytes are interleaved across C000/4000/E000/6000;
+        ; the character column is the offset within each of these four areas.
         LD      A,(Temp_Y112)
         ADD     A,A
         ADD     A,A
@@ -413,38 +413,8 @@ PrintGlyph16Color112:
         LD      A,(GlyphLine112)
         ADD     A,B
         LD      B,A
-        LD      A,(Temp_FontByte112)
-        LD      (ColorShiftByte112),A
-        XOR     A
-        LD      (ColorPlaneIndex112),A
-ColorPairLoop112:
-        ; Extract the next two glyph pixels (left bit first).
-        LD      A,(ColorShiftByte112)
-        RLCA
-        RLCA
-        LD      (ColorShiftByte112),A
-        AND     3
-        LD      E,A
-        LD      D,0
-        LD      HL,ColorPairValues112
-        ADD     HL,DE
-        LD      A,(HL)
-        LD      (ColorByte112),A
-
-        ; Absolute byte X = character_column*4 + pair_index.
-        ; Select one of four horizontal 32-byte banks and local X.
-        LD      A,(Temp_X112)
-        ADD     A,A
-        ADD     A,A
-        LD      E,A
-        LD      A,(ColorPlaneIndex112)
-        ADD     A,E
-        LD      (ColorByteColumn112),A
-        LD      E,A
-        AND     31
-        LD      L,A
-
-        ; Spectrum bitmap interleave for scanline B, local byte X in L.
+        ; Standard Spectrum bitmap interleave inside each 6K segment:
+        ; H=(Y&$C0)>>3 | (Y&7), L=(Y&$38)<<2 | character_column.
         LD      A,B
         AND     $C0
         RRCA
@@ -460,29 +430,44 @@ ColorPairLoop112:
         AND     $38
         RLCA
         RLCA
+        LD      L,A
+        LD      A,(Temp_X112)
         ADD     A,L
         LD      L,A
         JR      NC,ColorOffsetReady112
         INC     H
 ColorOffsetReady112:
-        ; Bank number = absolute byte X / 32.
-        LD      A,(ColorByteColumn112)
-        SRL     A
-        SRL     A
-        SRL     A
-        SRL     A
-        SRL     A
+        LD      (ColorOffset112),HL
+        LD      A,(Temp_FontByte112)
+        LD      (ColorShiftByte112),A
+        XOR     A
+        LD      (ColorPlaneIndex112),A
+ColorPairLoop112:
+        ; Pair bit 1 is the left pixel, bit 0 the right pixel.
+        LD      A,(ColorShiftByte112)
+        RLCA
+        RLCA
+        LD      (ColorShiftByte112),A
+        AND     3
+        LD      E,A
+        LD      D,0
+        LD      HL,ColorPairValues112
+        ADD     HL,DE
+        LD      A,(HL)
+        LD      (ColorByte112),A
+
+        ; Select the corresponding interleaved 6K memory segment.
+        LD      A,(ColorPlaneIndex112)
         ADD     A,A
         LD      E,A
         LD      D,0
-        PUSH    HL
         LD      HL,ColorPlaneBases112
         ADD     HL,DE
         LD      E,(HL)
         INC     HL
         LD      D,(HL)
         EX      DE,HL
-        POP     DE
+        LD      DE,(ColorOffset112)
         ADD     HL,DE
         LD      A,(ColorByte112)
         LD      (HL),A
@@ -708,7 +693,6 @@ Demo_Column112:        DB 0
 Grid_Width112:         DB 32
 Grid_Height112:        DB 24
 ColorOffset112:        DW 0
-ColorByteColumn112:   DB 0
 ColorShiftByte112:    DB 0
 ColorPlaneIndex112:   DB 0
 ColorByte112:         DB 0
