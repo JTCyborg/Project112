@@ -544,3 +544,33 @@
 **Источники аппаратной спецификации:**
 - https://zxpress.ru/ru/ezines/inferno/02/tehnicheskoe-opisanie-personalnogo-kompyutera-atm-turbo-2-struktura-pamyati-porty-vvoda-vvoda
 - https://zxpress.ru/en/ezines/adventurer/01/detailed-overview-of-atm-turbo-2-video-modes-four-main-screens-with-different-resolutions-and
+
+
+---
+
+## ATM Turbo 2+ migration — 2026-11-02
+
+### Implemented in branch `atm-native-video`
+
+- [x] Removed the Pentagon 512x192, A4B, Pentagon 16-color and 384x304 renderer dispatch from the active `main.asm`.
+- [x] Defined exactly four native ATM modes: Sinclair 256x192, 640x200 hardware multicolor, EGA 320x200x16 and hardware text 80x25.
+- [x] Corrected the mode sequence to system-port values 3, 2, 0 and 6.
+- [x] Added ATM 640x200 bitmap/attribute addressing: page 5/page 1, 40 bytes per scanline, even/odd columns in separate 8K halves.
+- [x] Added ATM EGA 320x200x16 four-layer addressing with bases $C000, $4000, $E000 and $6000.
+- [x] Added 80x25 hardware text output using character codes in page 5 and attributes in page 1.
+- [x] Kept Sinclair 256x192 as the first control mode and adapted its page mapping to the ATM page pair.
+- [x] Added the fixed mode-switch trampoline at $8003 inside the address-alias-safe first 32-byte block. The trampoline jumps to a re-entry point; it does not RET across the mode change.
+- [x] Keyboard Space now advances through the four ATM modes and waits for release.
+- [x] Updated README to describe the native ATM implementation and its validation status.
+
+### Still required — do not mark complete until tested
+
+- [ ] Run `build.bat` with the bundled SjASMPlus 1.23.1; resolve any assembler errors.
+- [ ] Run `project112.TRD` in UnrealSpeccy with `HIMEM=ATM710`.
+- [ ] Confirm Sinclair → 640x200 → EGA 320x200 → 80x25 → Sinclair transitions.
+- [ ] Confirm visible glyphs and ruler geometry in all modes.
+- [ ] Verify EGA pair-bit encoding and 640x200 attribute polarity against the emulator/real ATM 7.10 board.
+- [ ] Verify the hardware text generator's character-code mapping and attribute format.
+- [ ] Check that no mode transition hangs due to the A5–A7/A8–A10 alias restriction.
+
+**Current status:** source migration is committed to `atm-native-video`. Compilation and runtime validation have not been performed here; the branch is a test candidate, not a verified release.
