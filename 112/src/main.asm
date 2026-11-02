@@ -476,15 +476,16 @@ PrintGlyphStore112:
         LD      A,(Temp_FontByte112)
         LD      (HL),A
 
-        ; HARDWARE MULTICOLOR uses two independent display files:
-        ; duplicate the bitmap byte into the second bitmap at $6000.
+        ; A4B hardware multicolor: one attribute byte per bitmap byte.
+        ; The bitmap is in $4000-$57FF; matching attributes are in
+        ; $6000-$77FF at the same relative offset.
         LD      A,(Current_Mode_Index)
         CP      2
         JR      NZ,PrintGlyphStoreDone112
         PUSH    HL
         LD      DE,$2000
         ADD     HL,DE
-        LD      A,(Temp_FontByte112)
+        LD      A,$47
         LD      (HL),A
         POP     HL
 PrintGlyphStoreDone112:
@@ -499,6 +500,8 @@ PrintGlyphLineStored112:
         ; 512x192 and 16-color modes have no Spectrum attribute plane.
         LD      A,(Current_Mode_Index)
         CP      1
+        JR      Z,PrintCharDone112
+        CP      2
         JR      Z,PrintCharDone112
         CP      3
         JR      Z,PrintCharDone112
@@ -526,18 +529,8 @@ AttrAddressReady112:
         LD      A,$47                 ; BRIGHT white ink, black paper
         LD      (HL),A
 
-        ; HARDWARE MULTICOLOR has a second attribute file at $7800.
-        ; Do not write its attributes into the $6000 bitmap area.
-        LD      A,(Current_Mode_Index)
-        CP      2
-        JR      NZ,PrintCharDone112
-        PUSH    HL
-        LD      DE,$2000
-        ADD     HL,DE
-        LD      A,$47
-        LD      (HL),A
-        POP     HL
-
+        ; A4B attributes were written alongside each bitmap scanline
+        ; in PrintGlyphStore112; there is no 8x8 attribute plane here.
         JR      PrintCharDone112
 
 Print384Attribute112:
