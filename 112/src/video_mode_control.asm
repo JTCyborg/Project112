@@ -13,7 +13,7 @@ ModeIndexReady112:
         JR      Z,RestoreSinclairMemoryMap112
 
         ; DOSEN уже открыт при старте и не сбрасывался.
-        ; Не трогаем #FF77/#7FFD перед сменой режима: задаём только
+        ; Не трогаем системный регистр/#7FFD перед сменой режима: задаём только
         ; карту ATM и затем полный байт целевого видеорежима.
 
         ; После сброса конфигурации подключаем страницы видеопамяти ATM.
@@ -64,7 +64,7 @@ PrepareVideoRegister112:
 
         LD      HL,$FFEC                ; Пишем опкоды в самый верх памяти
         
-        LD      (HL),$01                ; Опкод: LD BC, $FF77
+        LD      (HL),$01                ; Опкод: LD BC, $0177
         INC     HL
         LD      (HL),$77
         INC     HL
@@ -328,7 +328,7 @@ ClearVideoMemory112:
         JP      ClearVideoMemory_ATM112
 
 VideoModeRegisterTable112:
-        ; Значения RG задаются заново, а не объединяются с прежним #FF77.
+        ; Значения RG задаются заново через #0177, сохраняя A9=0 и доступ к теневым портам.
         ; Верхние VE1/VE0 добавляются в PrepareVideoRegister112.
         DB 3,0                  ; Sinclair 256x192 = #C3
         DB 2,0                  ; ATM 640x200 Multicolor = #C2
