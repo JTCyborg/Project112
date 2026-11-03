@@ -27,13 +27,15 @@ Init_Z80_System112:
         LD      HL,Debug_RuntimeStart112
         CALL    DebugPrintString112
 
+        ; Сначала открываем теневые порты ATM через TR-DOS ROM.
+        ; Важно: до этого места не переключать ROM через #7FFD и не
+        ; обращаться напрямую к теневому системному порту #FF77.
+        CALL    OpenATMShadowPorts112
+
+        ; После активации DOSEN можно выбрать стандартную страницу ZX-128.
+        ; A9=0 в системном порту сохраняет доступ к теневым портам.
         XOR     A
         LD      BC,$7FFD
-        OUT     (C),A
-
-        ; Стартуем в режиме Sinclair напрямую
-        LD      A,$C3
-        LD      BC,$FF77
         OUT     (C),A
 
         XOR     A
@@ -42,6 +44,22 @@ Init_Z80_System112:
         LD      HL,Debug_Ready112
         CALL    DebugPrintString112
         JP      MainLoop112
+
+; -------------------------------------------------------------------------
+; ATM shadow-port unlock trampoline.
+; Requires TR-DOS ROM mapped at #3D2F and its OUT (C),A entry at #2A53.
+; The pushed return chain is: #3D2F -> #2A53 -> ShadowPortsOpened -> caller.
+; -------------------------------------------------------------------------
+OpenATMShadowPorts112:
+        LD      BC,OpenATMShadowPortsDone112
+        PUSH    BC
+        LD      BC,#2A53
+        PUSH    BC
+        LD      BC,#0177               ; A9=0 (CPM), A14=0 (PEN2)
+        LD      A,$C3                  ; RG=3, VE1=1, VE0=1
+        JP      #3D2F
+OpenATMShadowPortsDone112:
+        RET
 
 ; -------------------------------------------------------------------------
 ; Main Loop & Debug Output
