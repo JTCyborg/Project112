@@ -40,7 +40,7 @@ ApplyVideoRegister112:
         ADD HL,DE
         LD A,(HL)
         OR $C0
-        LD BC,$FD77
+        LD BC,$FF77
         OUT (C),A
         LD HL,Debug_ModeApplied112
         CALL DebugPrintString112
