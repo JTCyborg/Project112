@@ -41,7 +41,7 @@ RestoreSinclairMemoryMap112:
         OUT     (C),A
 
         LD      A,$C3                   ; Sinclair 256x192
-        LD      BC,$FF77
+        LD      BC,$0177
         OUT     (C),A
         JR      VideoModePostSwitch112
 
@@ -68,7 +68,7 @@ PrepareVideoRegister112:
         INC     HL
         LD      (HL),$77
         INC     HL
-        LD      (HL),$FF
+        LD      (HL),$01
         INC     HL
         
         LD      (HL),$ED                ; Опкод: OUT (C), A
