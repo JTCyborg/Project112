@@ -13,37 +13,52 @@ ModeIndexReady112:
         JR      Z,RestoreSinclairMemoryMap112
 
         ; -----------------------------------------------------------------
-        ; DOSEN/CPM уже открыт один раз при старте в main.asm.
-        ; Повторно прыгать на #3D2F нельзя: после OUT (#7FFD),0
-        ; в TR-DOS 128 ROM по адресу #3D2F может быть уже не TR-DOS.
-        ; При CPM=0 теневые порты остаются доступными.
+        ; Каждый переход начинается с полного возврата контроллера
+        ; к известному базовому состоянию. Никакие биты режима не
+        ; наследуются от предыдущего режима.
+        CALL    ResetVideoConfiguration112
 
-        LD      A,$7A                   ; Инверсный номер страницы ОЗУ 5
-        LD      BC,$7FF7
-        OUT     (C),A                   ; Подключаем в окно $4000-$7FFF
-        
-        LD      A,$7E                   ; Инверсный номер страницы ОЗУ 1
-        LD      BC,$FFF7
-        OUT     (C),A                   ; Подключаем в окно $C000-$FFFF
-        JR      PrepareVideoRegister112
-
-RestoreSinclairMemoryMap112:
-        ; Стандартная ZX-128 карта: окно 1 -> page 5 (экран),
-        ; окно 3 -> page 0.
-        LD      A,$7A
+        ; После сброса конфигурации подключаем страницы видеопамяти ATM.
+        LD      A,$7A                   ; RAM page 5 -> $4000-$7FFF
         LD      BC,$7FF7
         OUT     (C),A
-        LD      A,$7F
+        LD      A,$7E                   ; RAM page 1 -> $C000-$FFFF
         LD      BC,$FFF7
+        OUT     (C),A
+        JR      PrepareVideoRegister112
+
+; -------------------------------------------------------------------------
+; Полный базовый сброс видеоконфигурации перед каждым переходом.
+; #FF77 задаётся целиком, без сохранения старых битов RG/turbo/sync/VE.
+; #7FFD сбрасывает стандартную ZX-пейджинговую конфигурацию.
+; Карта ATM-окон далее задаётся явно в каждом проходе.
+; -------------------------------------------------------------------------
+ResetVideoConfiguration112:
+        LD      A,$C3                   ; Базовый Sinclair RG=3, VE1/VE0=1
+        LD      BC,$FF77
         OUT     (C),A
 
         XOR     A
         LD      BC,$7FFD
         OUT     (C),A
+        RET
 
-        ; RG=3, VE1=1, VE0=1; A9=1 закрывает теневые порты.
+RestoreSinclairMemoryMap112:
+        ; Полное восстановление стандартной ZX-128 конфигурации.
+        ; Сначала фиксируем базовый системный режим, затем карту памяти.
         LD      A,$C3
-        LD      BC,#FF77
+        LD      BC,$FF77
+        OUT     (C),A
+
+        LD      A,$7A                   ; Окно $4000 -> RAM page 5 (экран)
+        LD      BC,$7FF7
+        OUT     (C),A
+        LD      A,$7F                   ; Окно $C000 -> RAM page 0
+        LD      BC,$FFF7
+        OUT     (C),A
+
+        XOR     A
+        LD      BC,$7FFD
         OUT     (C),A
         JR      VideoModePostSwitch112
 
@@ -56,7 +71,7 @@ PrepareVideoRegister112:
         LD      HL,VideoModeRegisterTable112
         ADD     HL,DE
         LD      A,(HL)
-        OR      $C0                     ; Маскируем обязательные биты VE1=1, VE0=1
+        OR      $C0                     ; Полный байт режима: VE1/VE0=1, прочие биты из таблицы
 
         ; -----------------------------------------------------------------
         ; ШАГ 3: Стабилизация через Окно 3 (Адрес $FFEC)
@@ -330,7 +345,9 @@ ClearVideoMemory112:
         JP      ClearVideoMemory_ATM112
 
 VideoModeRegisterTable112:
-        DB 3,0                  ; Sinclair 256x192
-        DB 2,0                  ; ATM 640x200 Multicolor
-        DB 0,0                  ; ATM EGA 320x200
-        DB 6,0                  ; ATM Text 80x25
+        ; Значения RG задаются заново, а не объединяются с прежним #FF77.
+        ; Верхние VE1/VE0 добавляются в PrepareVideoRegister112.
+        DB 3,0                  ; Sinclair 256x192 = #C3
+        DB 2,0                  ; ATM 640x200 Multicolor = #C2
+        DB 0,0                  ; ATM EGA 320x200 = #C0
+        DB 6,0                  ; ATM Text 80x25 = #C6
