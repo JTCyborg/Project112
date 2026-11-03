@@ -26,12 +26,9 @@ ModeIndexReady112:
         JR      PrepareVideoRegister112
 
 RestoreSinclairMemoryMap112:
-        ; Полное восстановление стандартной ZX-128 конфигурации.
-        ; Сначала фиксируем базовый системный режим, затем карту памяти.
-        LD      A,$C3
-        LD      BC,$FF77
-        OUT     (C),A
-
+        ; Сначала восстанавливаем физические страницы окон, пока ATM
+        ; shadow-port decoder ещё работает. Системный Sinclair mode
+        ; включаем последним, после завершения всех теневых OUT.
         LD      A,$7A                   ; Окно $4000 -> RAM page 5 (экран)
         LD      BC,$7FF7
         OUT     (C),A
@@ -41,6 +38,10 @@ RestoreSinclairMemoryMap112:
 
         XOR     A
         LD      BC,$7FFD
+        OUT     (C),A
+
+        LD      A,$C3                   ; Sinclair 256x192
+        LD      BC,$FF77
         OUT     (C),A
         JR      VideoModePostSwitch112
 
