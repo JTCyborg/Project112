@@ -68,11 +68,12 @@ ATM640AttrBaseReady112:
 ; Each scanline has 160 pair bytes, distributed across four 8K regions.
 ; CPU address offset within each region is row*40 + cell_column.
 ;
-; Pair order across regions:
+; Pair order across regions (ATM2+ architecture document, section 5.4):
 ;   0: page 1, first half ($C000)
 ;   1: page 5, first half ($4000)
 ;   2: page 1, second half ($E000)
 ;   3: page 5, second half ($6000)
+; The matching address table is ATM_EGA_PlaneBases112 in main.asm.
 ; -------------------------------------------------------------------------
 RenderGlyph_ATMEGA112:
         CALL    ATM_CalcEGARowOffset112
