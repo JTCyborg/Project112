@@ -157,13 +157,23 @@ ATMTextCharBaseReady112:
 
         ; Attribute byte in page 1, opposite parity half.
         LD      HL,(ATM_Offset112)
-        LD      DE,$E000
         LD      A,(ATM_Parity112)
         OR      A
-        JR      Z,ATMTextAttrBaseReady112
+        JR      Z,ATMTextAttrEven112
+
+        ; MAME ATM2+ video fetch:
+        ; odd column: page 1, base $C000, plus BIT(x,3) = +1.
         LD      DE,$C000
-ATMTextAttrBaseReady112:
         ADD     HL,DE
+        INC     HL
+        JR      ATMTextAttrStore112
+
+ATMTextAttrEven112:
+        ; even column: page 1 second 8K half ($E000).
+        LD      DE,$E000
+        ADD     HL,DE
+
+ATMTextAttrStore112:
         LD      A,$47
         LD      (HL),A
         RET
