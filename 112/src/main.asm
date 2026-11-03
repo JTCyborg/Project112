@@ -414,10 +414,13 @@ ModeName_ATMText112:  DEFM "ATM TEXT 80x25",0
 ATM_ColorPairValues112:
         DB      $00,$B8,$47,$FF
 
-; ATM EGA regions in hardware pixel-pair order: page 5 first half,
-; page 1 first half, page 5 second half, page 1 second half.
+; ATM EGA regions in hardware pixel-pair order from the ATM2+ docs:
+; pair 0 -> page 1, first half  ($C000)
+; pair 1 -> page 5, first half  ($4000)
+; pair 2 -> page 1, second half ($E000)
+; pair 3 -> page 5, second half ($6000)
 ATM_EGA_PlaneBases112:
-        DW      $4000,$C000,$6000,$E000
+        DW      $C000,$4000,$E000,$6000
 
         ALIGN   256
 Font88_112:
