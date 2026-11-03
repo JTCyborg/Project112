@@ -1,976 +1,1017 @@
 # file opened: main.asm
   1   0000              ; =========================================================================
-  2   0000              ; PROJECT112 — VIDEO MODE DEMONSTRATOR
-  3   0000              ; Target: Pentagon 1024 / UnrealSpeccy
-  4   0000              ; Space: cycle video modes.
-  5   0000              ; Character test: full-screen grid; geometry follows selected mode.
-  6   0000              ; =========================================================================
-  7   0000
-  8   0000                      DEVICE ZXSPECTRUM128
-  9   0000                      EMPTYTRD "project112.TRD"
- 10   0000
- 11   0000                      ORG     $8000
- 12   8000
- 13   8000              Init_Z80_System112:
- 14   8000 F3                   DI
- 15   8001 ED 73 9F 84          LD      (Saved_SP_112),SP
- 16   8005                      ; Keep the stack outside $4000-$7FFF: ClearVideoMemory112
- 17   8005                      ; clears the entire screen bank and must never overwrite return addresses.
- 18   8005 31 FF BF             LD      SP,$BFFF
- 19   8008
- 20   8008                      ; Map Pentagon screen page 5 at $4000-$7FFF.
- 21   8008 3E 10                LD      A,$10
- 22   800A 01 FD 7F             LD      BC,$7FFD
- 23   800D ED 79                OUT     (C),A
+  2   0000              ; PROJECT112 — ZX SPECTRUM / ATM TURBO 2+ v7.10 VIDEO MODE TEST
+  3   0000              ; Target: ATM710 / UnrealSpeccy
+  4   0000              ; Fixed via Stack Trampoline in CPU Window 3.
+  5   0000              ; =========================================================================
+  6   0000
+  7   0000                      DEVICE ZXSPECTRUM128
+  8   0000                      EMPTYTRD "project112.TRD"
+  9   0000
+ 10   0000                      ORG     $8000
+ 11   8000
+ 12   8000              Project112Entry:
+ 13   8000 3E 5A                LD      A,'Z'
+ 14   8002 D3 EF                OUT     (#EF),A
+ 15   8004 C3 07 80             JP      Init_Z80_System112
+ 16   8007
+ 17   8007              ; -------------------------------------------------------------------------
+ 18   8007              ; Initial setup: native Sinclair 128K layout at start.
+ 19   8007              ; -------------------------------------------------------------------------
+ 20   8007              Init_Z80_System112:
+ 21   8007 F3                   DI
+ 22   8008 ED 73 D5 83          LD      (Saved_SP_112),SP
+ 23   800C 31 FF BF             LD      SP,$BFFF
  24   800F
- 25   800F AF                   XOR     A
- 26   8010 32 A1 84             LD      (Current_Mode_Index),A
- 27   8013 21 B3 84             LD      HL,Debug_RuntimeStart112
- 28   8016 CD 28 80             CALL    DebugPrintString112
- 29   8019 CD 1E 84             CALL    ApplyVideoMode
- 30   801C CD 50 80             CALL    DrawDemoScreen
- 31   801F 21 D1 84             LD      HL,Debug_Ready112
- 32   8022 CD 28 80             CALL    DebugPrintString112
- 33   8025 C3 73 84             JP      MainLoop112
- 34   8028
- 35   8028
- 36   8028
- 37   8028              ; -------------------------------------------------------------------------
- 38   8028              ; Debug output — UnrealSpeccy diagnostic port #EF.
- 39   8028              ; HL points to a zero-terminated string. AF and HL are preserved.
- 40   8028              ; -------------------------------------------------------------------------
- 41   8028              DebugPrintString112:
- 42   8028 F5                   PUSH    AF
- 43   8029 E5                   PUSH    HL
- 44   802A              DebugPrintLoop112:
- 45   802A 7E                   LD      A,(HL)
- 46   802B B7                   OR      A
- 47   802C 28 05                JR      Z,DebugPrintDone112
- 48   802E D3 EF                OUT     (#EF),A
- 49   8030 23                   INC     HL
- 50   8031 18 F7                JR      DebugPrintLoop112
- 51   8033              DebugPrintDone112:
- 52   8033 E1                   POP     HL
- 53   8034 F1                   POP     AF
- 54   8035 C9                   RET
- 55   8036
- 56   8036              ; Clear the full 16K screen window in RAM page 5. This also clears
- 57   8036              ; the secondary $6000-$77FF plane used by 512x192 / A4B-style modes.
- 58   8036              ClearVideoMemory112:
- 59   8036                      ; Mode-specific screen-memory clearing lives in the corresponding
- 60   8036                      ; mode module. The common entry point only dispatches.
- 61   8036 3A A1 84             LD      A,(Current_Mode_Index)
- 62   8039 FE 00                CP      0
- 63   803B CA CF 81             JP      Z,ClearVideoMemory_Standard112
- 64   803E FE 01                CP      1
- 65   8040 CA 21 82             JP      Z,ClearVideoMemory_512112
- 66   8043 FE 02                CP      2
- 67   8045 CA 6C 82             JP      Z,ClearVideoMemory_A4B112
- 68   8048 FE 03                CP      3
- 69   804A CA AB 82             JP      Z,ClearVideoMemory_16Color112
- 70   804D C3 4A 83             JP      ClearVideoMemory_384112
- 71   8050
- 72   8050              DrawDemoScreen:
- 73   8050 CD 36 80             CALL    ClearVideoMemory112
- 74   8053
- 75   8053                      ; Select the actual character grid for the active video mode.
- 76   8053 3A A1 84             LD      A,(Current_Mode_Index)
- 77   8056 FE 01                CP      1
- 78   8058 28 10                JR      Z,GridWidth64_112
- 79   805A FE 04                CP      4
- 80   805C 28 18                JR      Z,GridGeometry384_112
- 81   805E 3E 20                LD      A,32
- 82   8060 32 AC 84             LD      (Grid_Width112),A
- 83   8063 3E 18                LD      A,24
- 84   8065 32 AD 84             LD      (Grid_Height112),A
- 85   8068 18 16                JR      GridGeometryReady112
- 86   806A              GridWidth64_112:
- 87   806A 3E 40                LD      A,64
- 88   806C 32 AC 84             LD      (Grid_Width112),A
- 89   806F 3E 18                LD      A,24
- 90   8071 32 AD 84             LD      (Grid_Height112),A
- 91   8074 18 0A                JR      GridGeometryReady112
- 92   8076              GridGeometry384_112:
- 93   8076 3E 30                LD      A,48
- 94   8078 32 AC 84             LD      (Grid_Width112),A
- 95   807B 3E 26                LD      A,38
- 96   807D 32 AD 84             LD      (Grid_Height112),A
- 97   8080              GridGeometryReady112:
- 98   8080
- 99   8080                      ; Reserve row 0 for an explicit active-mode label.
-100   8080 21 E4 84             LD      HL,Text_ModePrefix112
-101   8083 0E 00                LD      C,0
-102   8085 16 00                LD      D,0
-103   8087 CD 2F 81             CALL    PrintString112
-104   808A 3A A1 84             LD      A,(Current_Mode_Index)
-105   808D 87                   ADD     A,A
-106   808E 5F                   LD      E,A
-107   808F 16 00                LD      D,0
-108   8091 21 EB 84             LD      HL,Mode_Name_Pointers
-109   8094 19                   ADD     HL,DE
-110   8095 5E                   LD      E,(HL)
-111   8096 23                   INC     HL
-112   8097 56                   LD      D,(HL)
-113   8098 EB                   EX      DE,HL
-114   8099 0E 06                LD      C,6
-115   809B 16 00                LD      D,0
-116   809D CD 2F 81             CALL    PrintString112
-117   80A0
-118   80A0                      ; Draw the test area. Row 0 is the mode label; the last row
-119   80A0                      ; and last column are rulers with a zero marker every 10 cells.
-120   80A0 3E 20                LD      A,32
-121   80A2 32 A9 84             LD      (Demo_Character112),A
-122   80A5 3E 01                LD      A,1
-123   80A7 32 AA 84             LD      (Demo_Row112),A
-124   80AA              DemoRowLoop112:
-125   80AA AF                   XOR     A
-126   80AB 32 AB 84             LD      (Demo_Column112),A
-127   80AE              DemoColumnLoop112:
-128   80AE 3A AB 84             LD      A,(Demo_Column112)
-129   80B1 4F                   LD      C,A
-130   80B2 3A AA 84             LD      A,(Demo_Row112)
-131   80B5 57                   LD      D,A
-132   80B6
-133   80B6                      ; The tenth, twentieth, thirtieth... ruler positions are marked '0'.
-134   80B6                      ; All other horizontal ruler cells are '-', vertical cells are '|'.
-135   80B6 3A AA 84             LD      A,(Demo_Row112)
-136   80B9 47                   LD      B,A
-137   80BA 3A AD 84             LD      A,(Grid_Height112)
-138   80BD 3D                   DEC     A
-139   80BE B8                   CP      B
-140   80BF 28 10                JR      Z,DrawBottomRuler112
-141   80C1 3A AB 84             LD      A,(Demo_Column112)
-142   80C4 47                   LD      B,A
-143   80C5 3A AC 84             LD      A,(Grid_Width112)
-144   80C8 3D                   DEC     A
-145   80C9 B8                   CP      B
-146   80CA 28 17                JR      Z,DrawRightRuler112
-147   80CC 3A A9 84             LD      A,(Demo_Character112)
-148   80CF 18 20                JR      DrawGridCell112
-149   80D1              DrawBottomRuler112:
-150   80D1 3A AB 84             LD      A,(Demo_Column112)
-151   80D4 3C                   INC     A
-152   80D5 47                   LD      B,A
-153   80D6 78                   LD      A,B
-154   80D7 CD 24 81             CALL    Modulo10_112
-155   80DA B7                   OR      A
-156   80DB 3E 2D                LD      A,'-'
-157   80DD 20 12                JR      NZ,DrawGridCell112
-158   80DF 3E 30                LD      A,'0'
-159   80E1 18 0E                JR      DrawGridCell112
-160   80E3              DrawRightRuler112:
-161   80E3 3A AA 84             LD      A,(Demo_Row112)
-162   80E6 3C                   INC     A
-163   80E7 CD 24 81             CALL    Modulo10_112
-164   80EA B7                   OR      A
-165   80EB 3E 7C                LD      A,'|'
-166   80ED 20 02                JR      NZ,DrawGridCell112
-167   80EF 3E 30                LD      A,'0'
-168   80F1              DrawGridCell112:
-169   80F1 CD 3B 81             CALL    PrintChar112
-170   80F4
-171   80F4 3A A9 84             LD      A,(Demo_Character112)
-172   80F7 3C                   INC     A
-173   80F8 FE 80                CP      128
-174   80FA 38 02                JR      C,GridCharReady112
-175   80FC 3E 20                LD      A,32
-176   80FE              GridCharReady112:
-177   80FE 32 A9 84             LD      (Demo_Character112),A
-178   8101
-179   8101 3A AB 84             LD      A,(Demo_Column112)
-180   8104 3C                   INC     A
-181   8105 32 AB 84             LD      (Demo_Column112),A
-182   8108 47                   LD      B,A
-183   8109 3A AC 84             LD      A,(Grid_Width112)
-184   810C B8                   CP      B
-185   810D 20 9F                JR      NZ,DemoColumnLoop112
-186   810F
-187   810F 3A AA 84             LD      A,(Demo_Row112)
-188   8112 3C                   INC     A
-189   8113 32 AA 84             LD      (Demo_Row112),A
-190   8116 47                   LD      B,A
-191   8117 3A AD 84             LD      A,(Grid_Height112)
-192   811A B8                   CP      B
-193   811B 20 8D                JR      NZ,DemoRowLoop112
-194   811D 21 C2 84             LD      HL,Debug_ScreenDrawn112
-195   8120 CD 28 80             CALL    DebugPrintString112
-196   8123 C9                   RET
-197   8124
-198   8124              ; Return A = A modulo 10. Preserves BC and DE.
-199   8124              Modulo10_112:
-200   8124 C5                   PUSH    BC
-201   8125 06 0A                LD      B,10
-202   8127              Modulo10Loop112:
-203   8127 B8                   CP      B
-204   8128 38 03                JR      C,Modulo10Done112
-205   812A 90                   SUB     B
-206   812B 18 FA                JR      Modulo10Loop112
-207   812D              Modulo10Done112:
-208   812D C1                   POP     BC
-209   812E C9                   RET
-210   812F
-211   812F              ; Print zero-terminated string at C=character column, D=character row.
-212   812F              PrintString112:
-213   812F 7E                   LD      A,(HL)
-214   8130 B7                   OR      A
-215   8131 C8                   RET     Z
-216   8132 E5                   PUSH    HL
-217   8133 CD 3B 81             CALL    PrintChar112
-218   8136 E1                   POP     HL
-219   8137 23                   INC     HL
-220   8138 0C                   INC     C
-221   8139 18 F4                JR      PrintString112
-222   813B
-223   813B              ; Draw one 8x8 glyph. A=ASCII, C=column, D=character row.
-224   813B              ; Mode-specific bitmap and attribute operations are delegated to mode files.
-225   813B              PrintChar112:
-226   813B C5                   PUSH    BC
-227   813C D5                   PUSH    DE
-228   813D E5                   PUSH    HL
-229   813E 32 A2 84             LD      (Temp_Character112),A
-230   8141 79                   LD      A,C
-231   8142 32 A3 84             LD      (Temp_X112),A
-232   8145 7A                   LD      A,D
-233   8146 32 A4 84             LD      (Temp_Y112),A
-234   8149
-235   8149 3A A2 84             LD      A,(Temp_Character112)
-236   814C FE 20                CP      32
-237   814E DA CB 81             JP      C,PrintCharDone112
-238   8151 D6 20                SUB     32
-239   8153 6F                   LD      L,A
-240   8154 26 00                LD      H,0
-241   8156 29                   ADD     HL,HL
-242   8157 29                   ADD     HL,HL
-243   8158 29                   ADD     HL,HL
-244   8159 11 00 86             LD      DE,Font88_112
-245   815C 19                   ADD     HL,DE
-246   815D 22 A6 84             LD      (FontPointer112),HL
-247   8160
-248   8160 AF                   XOR     A
-249   8161 32 A5 84             LD      (GlyphLine112),A
-250   8164              GlyphLineLoop112:
-251   8164 2A A6 84             LD      HL,(FontPointer112)
-252   8167 7E                   LD      A,(HL)
-253   8168 32 A8 84             LD      (Temp_FontByte112),A
-254   816B 23                   INC     HL
-255   816C 22 A6 84             LD      (FontPointer112),HL
-256   816F                      ; Dispatch one scanline to the active mode's independent renderer.
-257   816F 3A A1 84             LD      A,(Current_Mode_Index)
-258   8172 FE 00                CP      0
-259   8174 CC E4 81             CALL    Z,RenderGlyph_Standard112
-260   8177 3A A1 84             LD      A,(Current_Mode_Index)
-261   817A FE 01                CP      1
-262   817C CC 36 82             CALL    Z,RenderGlyph_512112
-263   817F 3A A1 84             LD      A,(Current_Mode_Index)
-264   8182 FE 02                CP      2
-265   8184 CC 81 82             CALL    Z,RenderGlyph_A4B112
-266   8187 3A A1 84             LD      A,(Current_Mode_Index)
-267   818A FE 03                CP      3
-268   818C CC DA 82             CALL    Z,RenderGlyph_16Color112
-269   818F 3A A1 84             LD      A,(Current_Mode_Index)
-270   8192 FE 04                CP      4
-271   8194 CC 7A 83             CALL    Z,RenderGlyph_384112
-272   8197
-273   8197 3A A5 84             LD      A,(GlyphLine112)
-274   819A 3C                   INC     A
-275   819B 32 A5 84             LD      (GlyphLine112),A
-276   819E FE 08                CP      8
-277   81A0 C2 64 81             JP      NZ,GlyphLineLoop112
-278   81A3
-279   81A3                      ; Character-level attributes are also mode-owned.
-280   81A3 3A A1 84             LD      A,(Current_Mode_Index)
-281   81A6 FE 00                CP      0
-282   81A8 CC 06 82             CALL    Z,RenderAttributes_Standard112
-283   81AB 3A A1 84             LD      A,(Current_Mode_Index)
-284   81AE FE 01                CP      1
-285   81B0 CC 6B 82             CALL    Z,RenderAttributes_512112
-286   81B3 3A A1 84             LD      A,(Current_Mode_Index)
-287   81B6 FE 02                CP      2
-288   81B8 CC AA 82             CALL    Z,RenderAttributes_A4B112
-289   81BB 3A A1 84             LD      A,(Current_Mode_Index)
-290   81BE FE 03                CP      3
-291   81C0 CC 49 83             CALL    Z,RenderAttributes_16Color112
-292   81C3 3A A1 84             LD      A,(Current_Mode_Index)
-293   81C6 FE 04                CP      4
-294   81C8 CC A0 83             CALL    Z,RenderAttributes_384112
-295   81CB
-296   81CB              PrintCharDone112:
-297   81CB E1                   POP     HL
-298   81CC D1                   POP     DE
-299   81CD C1                   POP     BC
-300   81CE C9                   RET
-301   81CF
-302   81CF              ; -------------------------------------------------------------------------
-303   81CF              ; Independent video-mode implementations.
-304   81CF              ; Keep mode-specific memory maps, clearing and glyph rendering in these files.
-305   81CF              ; -------------------------------------------------------------------------
-306   81CF                      INCLUDE "src/mode_standard.asm"
-# file opened: mode_standard.asm
-  1+  81CF              ; =========================================================================
-  2+  81CF              ; PROJECT112 — VIDEO MODE 0: STANDARD 256x192
-  3+  81CF              ; Bitmap: Spectrum interleaved screen at $4000; attributes at $5800.
-  4+  81CF              ; =========================================================================
-  5+  81CF
-  6+  81CF              ClearVideoMemory_Standard112:
-  7+  81CF 3E 10                LD      A,$10
-  8+  81D1 01 FD 7F             LD      BC,$7FFD
-  9+  81D4 ED 79                OUT     (C),A
- 10+  81D6 21 00 40             LD      HL,$4000
- 11+  81D9 11 01 40             LD      DE,$4001
- 12+  81DC 01 FF 3F             LD      BC,$3FFF
- 13+  81DF 36 00                LD      (HL),0
- 14+  81E1 ED B0                LDIR
- 15+  81E3 C9                   RET
- 16+  81E4
- 17+  81E4              RenderGlyph_Standard112:
- 18+  81E4 3A A4 84             LD      A,(Temp_Y112)
- 19+  81E7 E6 18                AND     $18
- 20+  81E9 F6 40                OR      $40
- 21+  81EB 67                   LD      H,A
- 22+  81EC 3A A5 84             LD      A,(GlyphLine112)
- 23+  81EF B4                   OR      H
- 24+  81F0 67                   LD      H,A
- 25+  81F1 3A A4 84             LD      A,(Temp_Y112)
- 26+  81F4 E6 07                AND     7
- 27+  81F6 07                   RLCA
- 28+  81F7 07                   RLCA
- 29+  81F8 07                   RLCA
- 30+  81F9 07                   RLCA
- 31+  81FA 07                   RLCA
- 32+  81FB 6F                   LD      L,A
- 33+  81FC 3A A3 84             LD      A,(Temp_X112)
- 34+  81FF B5                   OR      L
- 35+  8200 6F                   LD      L,A
- 36+  8201 3A A8 84             LD      A,(Temp_FontByte112)
- 37+  8204 77                   LD      (HL),A
- 38+  8205 C9                   RET
- 39+  8206
- 40+  8206              RenderAttributes_Standard112:
- 41+  8206 3A A4 84             LD      A,(Temp_Y112)
- 42+  8209 6F                   LD      L,A
- 43+  820A 26 00                LD      H,0
- 44+  820C 29                   ADD     HL,HL
- 45+  820D 29                   ADD     HL,HL
- 46+  820E 29                   ADD     HL,HL
- 47+  820F 29                   ADD     HL,HL
- 48+  8210 29                   ADD     HL,HL
- 49+  8211 11 00 58             LD      DE,$5800
- 50+  8214 19                   ADD     HL,DE
- 51+  8215 3A A3 84             LD      A,(Temp_X112)
- 52+  8218 85                   ADD     A,L
- 53+  8219 6F                   LD      L,A
- 54+  821A 30 01                JR      NC,StandardAttrReady112
- 55+  821C 24                   INC     H
- 56+  821D              StandardAttrReady112:
- 57+  821D 3E 47                LD      A,$47
- 58+  821F 77                   LD      (HL),A
- 59+  8220 C9                   RET
- 60+  8221
-# file closed: mode_standard.asm
-307   8221                      INCLUDE "src/mode_512.asm"
-# file opened: mode_512.asm
-  1+  8221              ; =========================================================================
-  2+  8221              ; PROJECT112 — VIDEO MODE 1: 512x192
-  3+  8221              ; Even and odd byte columns occupy separate screen halves.
-  4+  8221              ; =========================================================================
-  5+  8221
-  6+  8221              ClearVideoMemory_512112:
-  7+  8221 3E 10                LD      A,$10
-  8+  8223 01 FD 7F             LD      BC,$7FFD
-  9+  8226 ED 79                OUT     (C),A
- 10+  8228 21 00 40             LD      HL,$4000
- 11+  822B 11 01 40             LD      DE,$4001
- 12+  822E 01 FF 3F             LD      BC,$3FFF
- 13+  8231 36 00                LD      (HL),0
- 14+  8233 ED B0                LDIR
- 15+  8235 C9                   RET
- 16+  8236
- 17+  8236              RenderGlyph_512112:
- 18+  8236 3A A4 84             LD      A,(Temp_Y112)
- 19+  8239 87                   ADD     A,A
- 20+  823A 87                   ADD     A,A
- 21+  823B 87                   ADD     A,A
- 22+  823C 47                   LD      B,A
- 23+  823D 3A A5 84             LD      A,(GlyphLine112)
- 24+  8240 80                   ADD     A,B
- 25+  8241 47                   LD      B,A
- 26+  8242 78                   LD      A,B
- 27+  8243 E6 C0                AND     $C0
- 28+  8245 0F                   RRCA
- 29+  8246 0F                   RRCA
- 30+  8247 0F                   RRCA
- 31+  8248 F6 40                OR      $40
- 32+  824A 67                   LD      H,A
- 33+  824B 78                   LD      A,B
- 34+  824C E6 07                AND     7
- 35+  824E B4                   OR      H
- 36+  824F 67                   LD      H,A
- 37+  8250 78                   LD      A,B
- 38+  8251 E6 38                AND     $38
- 39+  8253 07                   RLCA
- 40+  8254 07                   RLCA
- 41+  8255 6F                   LD      L,A
- 42+  8256 3A A3 84             LD      A,(Temp_X112)
- 43+  8259 CB 3F                SRL     A
- 44+  825B B5                   OR      L
- 45+  825C 6F                   LD      L,A
- 46+  825D 3A A3 84             LD      A,(Temp_X112)
- 47+  8260 E6 01                AND     1
- 48+  8262 28 02                JR      Z,Mode512Store112
- 49+  8264 CB EC                SET     5,H
- 50+  8266              Mode512Store112:
- 51+  8266 3A A8 84             LD      A,(Temp_FontByte112)
- 52+  8269 77                   LD      (HL),A
- 53+  826A C9                   RET
- 54+  826B
- 55+  826B              RenderAttributes_512112:
- 56+  826B C9                   RET
- 57+  826C
-# file closed: mode_512.asm
-308   826C                      INCLUDE "src/mode_a4b.asm"
-# file opened: mode_a4b.asm
-  1+  826C              ; =========================================================================
-  2+  826C              ; PROJECT112 — VIDEO MODE 2: A4B HARDWARE MULTICOLOR
-  3+  826C              ; Bitmap at $4000-$57FF; one matching attribute byte at $6000-$77FF
-  4+  826C              ; for every bitmap byte.
-  5+  826C              ; =========================================================================
-  6+  826C
-  7+  826C              ClearVideoMemory_A4B112:
-  8+  826C 3E 10                LD      A,$10
-  9+  826E 01 FD 7F             LD      BC,$7FFD
- 10+  8271 ED 79                OUT     (C),A
- 11+  8273 21 00 40             LD      HL,$4000
- 12+  8276 11 01 40             LD      DE,$4001
- 13+  8279 01 FF 3F             LD      BC,$3FFF
- 14+  827C 36 00                LD      (HL),0
- 15+  827E ED B0                LDIR
- 16+  8280 C9                   RET
- 17+  8281
- 18+  8281              RenderGlyph_A4B112:
- 19+  8281                      ; Pixel bitmap uses the standard Spectrum interleaved layout.
- 20+  8281 3A A4 84             LD      A,(Temp_Y112)
- 21+  8284 E6 18                AND     $18
- 22+  8286 F6 40                OR      $40
- 23+  8288 67                   LD      H,A
- 24+  8289 3A A5 84             LD      A,(GlyphLine112)
- 25+  828C B4                   OR      H
- 26+  828D 67                   LD      H,A
- 27+  828E 3A A4 84             LD      A,(Temp_Y112)
- 28+  8291 E6 07                AND     7
- 29+  8293 07                   RLCA
- 30+  8294 07                   RLCA
- 31+  8295 07                   RLCA
- 32+  8296 07                   RLCA
- 33+  8297 07                   RLCA
- 34+  8298 6F                   LD      L,A
- 35+  8299 3A A3 84             LD      A,(Temp_X112)
- 36+  829C B5                   OR      L
- 37+  829D 6F                   LD      L,A
- 38+  829E 3A A8 84             LD      A,(Temp_FontByte112)
- 39+  82A1 77                   LD      (HL),A
- 40+  82A2                      ; A4B attribute is offset + $2000 from the bitmap byte.
- 41+  82A2 11 00 20             LD      DE,$2000
- 42+  82A5 19                   ADD     HL,DE
- 43+  82A6 3E 47                LD      A,$47
- 44+  82A8 77                   LD      (HL),A
- 45+  82A9 C9                   RET
- 46+  82AA
- 47+  82AA              RenderAttributes_A4B112:
- 48+  82AA                      ; Attributes are emitted per bitmap scanline in RenderGlyph_A4B112.
- 49+  82AA C9                   RET
- 50+  82AB
-# file closed: mode_a4b.asm
-309   82AB                      INCLUDE "src/mode_16color.asm"
-# file opened: mode_16color.asm
-  1+  82AB              ; =========================================================================
-  2+  82AB              ; PROJECT112 — VIDEO MODE 3: PENTAGON 16-COLOR
-  3+  82AB              ; Four interleaved 6K memory areas: $C000, $4000, $E000, $6000.
-  4+  82AB              ; Each byte represents two adjacent pixels.
-  5+  82AB              ; =========================================================================
-  6+  82AB
-  7+  82AB              ClearVideoMemory_16Color112:
-  8+  82AB 3E 10                LD      A,$10
-  9+  82AD 01 FD 7F             LD      BC,$7FFD
- 10+  82B0 ED 79                OUT     (C),A
- 11+  82B2 21 00 40             LD      HL,$4000
- 12+  82B5 11 01 40             LD      DE,$4001
- 13+  82B8 01 FF 3F             LD      BC,$3FFF
- 14+  82BB 36 00                LD      (HL),0
- 15+  82BD ED B0                LDIR
- 16+  82BF 21 00 C0             LD      HL,$C000
- 17+  82C2 11 01 C0             LD      DE,$C001
- 18+  82C5 01 FF 17             LD      BC,$17FF
- 19+  82C8 36 00                LD      (HL),0
- 20+  82CA ED B0                LDIR
- 21+  82CC 21 00 E0             LD      HL,$E000
- 22+  82CF 11 01 E0             LD      DE,$E001
- 23+  82D2 01 FF 17             LD      BC,$17FF
- 24+  82D5 36 00                LD      (HL),0
- 25+  82D7 ED B0                LDIR
- 26+  82D9 C9                   RET
- 27+  82DA
- 28+  82DA              RenderGlyph_16Color112:
- 29+  82DA 3A A4 84             LD      A,(Temp_Y112)
- 30+  82DD 87                   ADD     A,A
- 31+  82DE 87                   ADD     A,A
- 32+  82DF 87                   ADD     A,A
- 33+  82E0 47                   LD      B,A
- 34+  82E1 3A A5 84             LD      A,(GlyphLine112)
- 35+  82E4 80                   ADD     A,B
- 36+  82E5 47                   LD      B,A
- 37+  82E6                      ; Spectrum bitmap interleave within each 6K bank.
- 38+  82E6 78                   LD      A,B
- 39+  82E7 E6 C0                AND     $C0
- 40+  82E9 0F                   RRCA
- 41+  82EA 0F                   RRCA
- 42+  82EB 0F                   RRCA
- 43+  82EC E6 18                AND     $18
- 44+  82EE 67                   LD      H,A
- 45+  82EF 78                   LD      A,B
- 46+  82F0 E6 07                AND     7
- 47+  82F2 B4                   OR      H
- 48+  82F3 67                   LD      H,A
- 49+  82F4 78                   LD      A,B
- 50+  82F5 E6 38                AND     $38
- 51+  82F7 07                   RLCA
- 52+  82F8 07                   RLCA
- 53+  82F9 6F                   LD      L,A
- 54+  82FA 3A A3 84             LD      A,(Temp_X112)
- 55+  82FD 85                   ADD     A,L
- 56+  82FE 6F                   LD      L,A
- 57+  82FF 30 01                JR      NC,ColorOffsetReady112
- 58+  8301 24                   INC     H
- 59+  8302              ColorOffsetReady112:
- 60+  8302 22 AE 84             LD      (ColorOffset112),HL
- 61+  8305 3A A8 84             LD      A,(Temp_FontByte112)
- 62+  8308 32 B0 84             LD      (ColorShiftByte112),A
- 63+  830B AF                   XOR     A
- 64+  830C 32 B1 84             LD      (ColorPlaneIndex112),A
- 65+  830F              ColorPairLoop112:
- 66+  830F 3A B0 84             LD      A,(ColorShiftByte112)
- 67+  8312 07                   RLCA
- 68+  8313 07                   RLCA
- 69+  8314 32 B0 84             LD      (ColorShiftByte112),A
- 70+  8317 E6 03                AND     3
- 71+  8319 5F                   LD      E,A
- 72+  831A 16 00                LD      D,0
- 73+  831C 21 40 85             LD      HL,ColorPairValues112
- 74+  831F 19                   ADD     HL,DE
- 75+  8320 7E                   LD      A,(HL)
- 76+  8321 32 B2 84             LD      (ColorByte112),A
- 77+  8324 3A B1 84             LD      A,(ColorPlaneIndex112)
- 78+  8327 87                   ADD     A,A
- 79+  8328 5F                   LD      E,A
- 80+  8329 16 00                LD      D,0
- 81+  832B 21 44 85             LD      HL,ColorPlaneBases112
- 82+  832E 19                   ADD     HL,DE
- 83+  832F 5E                   LD      E,(HL)
- 84+  8330 23                   INC     HL
- 85+  8331 56                   LD      D,(HL)
- 86+  8332 EB                   EX      DE,HL
- 87+  8333 ED 5B AE 84          LD      DE,(ColorOffset112)
- 88+  8337 19                   ADD     HL,DE
- 89+  8338 3A B2 84             LD      A,(ColorByte112)
- 90+  833B 77                   LD      (HL),A
- 91+  833C 3A B1 84             LD      A,(ColorPlaneIndex112)
- 92+  833F 3C                   INC     A
- 93+  8340 32 B1 84             LD      (ColorPlaneIndex112),A
- 94+  8343 FE 04                CP      4
- 95+  8345 C2 0F 83             JP      NZ,ColorPairLoop112
- 96+  8348 C9                   RET
- 97+  8349
- 98+  8349              RenderAttributes_16Color112:
- 99+  8349 C9                   RET
-100+  834A
-# file closed: mode_16color.asm
-310   834A                      INCLUDE "src/mode_384.asm"
-# file opened: mode_384.asm
-  1+  834A              ; =========================================================================
-  2+  834A              ; PROJECT112 — VIDEO MODE 4: PENTAGON 384x304
-  3+  834A              ; The canonical XYSC384/YSC384/SA384 address routines are kept isolated here.
-  4+  834A              ; =========================================================================
-  5+  834A
-  6+  834A              ClearVideoMemory_384112:
-  7+  834A                      ; The visible lower 16K is RAM page 5 at $4000; upper memory is page 4.
-  8+  834A 3E 10                LD      A,$10
-  9+  834C 01 FD 7F             LD      BC,$7FFD
- 10+  834F ED 79                OUT     (C),A
- 11+  8351 21 00 40             LD      HL,$4000
- 12+  8354 11 01 40             LD      DE,$4001
- 13+  8357 01 FF 3F             LD      BC,$3FFF
- 14+  835A 36 00                LD      (HL),0
- 15+  835C ED B0                LDIR
- 16+  835E 3E 04                LD      A,$04
- 17+  8360 01 FD 7F             LD      BC,$7FFD
- 18+  8363 ED 79                OUT     (C),A
- 19+  8365 21 00 C0             LD      HL,$C000
- 20+  8368 11 01 C0             LD      DE,$C001
- 21+  836B 01 FF 3F             LD      BC,$3FFF
- 22+  836E 36 00                LD      (HL),0
- 23+  8370 ED B0                LDIR
- 24+  8372                      ; Keep RAM page 4 mapped at $C000: XYSC384 may address both
- 25+  8372                      ; $4000 and $C000 screen regions during subsequent glyph writes.
- 26+  8372 3E 04                LD      A,$04
- 27+  8374 01 FD 7F             LD      BC,$7FFD
- 28+  8377 ED 79                OUT     (C),A
- 29+  8379 C9                   RET
- 30+  837A
- 31+  837A              RenderGlyph_384112:
- 32+  837A                      ; Convert character row to full scanline Y (0..303), plus glyph row.
- 33+  837A 3A A4 84             LD      A,(Temp_Y112)
- 34+  837D 4F                   LD      C,A
- 35+  837E 06 00                LD      B,0
- 36+  8380 CB 21                SLA     C
- 37+  8382 CB 10                RL      B
- 38+  8384 CB 21                SLA     C
- 39+  8386 CB 10                RL      B
- 40+  8388 CB 21                SLA     C
- 41+  838A CB 10                RL      B
- 42+  838C 3A A5 84             LD      A,(GlyphLine112)
- 43+  838F 81                   ADD     A,C
- 44+  8390 4F                   LD      C,A
- 45+  8391 30 01                JR      NC,Print384YReady112
- 46+  8393 04                   INC     B
- 47+  8394              Print384YReady112:
- 48+  8394 3A A3 84             LD      A,(Temp_X112)
- 49+  8397 5F                   LD      E,A
- 50+  8398 CD C0 83             CALL    XYSC384_112
- 51+  839B 3A A8 84             LD      A,(Temp_FontByte112)
- 52+  839E 77                   LD      (HL),A
- 53+  839F C9                   RET
- 54+  83A0
- 55+  83A0              RenderAttributes_384112:
- 56+  83A0                      ; Attribute address is derived from the 384x304 bitmap address.
- 57+  83A0 3A A4 84             LD      A,(Temp_Y112)
- 58+  83A3 4F                   LD      C,A
- 59+  83A4 06 00                LD      B,0
- 60+  83A6 CB 21                SLA     C
- 61+  83A8 CB 10                RL      B
- 62+  83AA CB 21                SLA     C
- 63+  83AC CB 10                RL      B
- 64+  83AE CB 21                SLA     C
- 65+  83B0 CB 10                RL      B
- 66+  83B2 3A A3 84             LD      A,(Temp_X112)
- 67+  83B5 5F                   LD      E,A
- 68+  83B6 CD C0 83             CALL    XYSC384_112
- 69+  83B9 CD F8 83             CALL    SA384_112
- 70+  83BC 3E 47                LD      A,$47
- 71+  83BE 77                   LD      (HL),A
- 72+  83BF C9                   RET
- 73+  83C0
- 74+  83C0              ; XYSC384 input BC=scanline 0..303, E=byte column 0..47; output HL=bitmap.
- 75+  83C0              XYSC384_112:
- 76+  83C0 CD D7 83             CALL    YSC384_112
- 77+  83C3 7B                   LD      A,E
- 78+  83C4 D6 08                SUB     8
- 79+  83C6 38 06                JR      C,XS384Left112
- 80+  83C8 FE 20                CP      32
- 81+  83CA 38 06                JR      C,XS384Middle112
- 82+  83CC D6 38                SUB     32+$18
- 83+  83CE              XS384Left112:
- 84+  83CE C6 20                ADD     A,8+$18
- 85+  83D0 18 02                JR      XS384Add112
- 86+  83D2              XS384Middle112:
- 87+  83D2 CB EC                SET     5,H
- 88+  83D4              XS384Add112:
- 89+  83D4 85                   ADD     A,L
- 90+  83D5 6F                   LD      L,A
- 91+  83D6 C9                   RET
- 92+  83D7
- 93+  83D7              YSC384_112:
- 94+  83D7 79                   LD      A,C
- 95+  83D8 E6 07                AND     7
- 96+  83DA 67                   LD      H,A
- 97+  83DB A9                   XOR     C
- 98+  83DC 87                   ADD     A,A
- 99+  83DD 87                   ADD     A,A
-100+  83DE 87                   ADD     A,A
-101+  83DF 87                   ADD     A,A
-102+  83E0 6F                   LD      L,A
-103+  83E1 3E D8                LD      A,$D8
-104+  83E3 04                   INC     B
-105+  83E4 10 0F                DJNZ    YSC384Low112
-106+  83E6 79                   LD      A,C
-107+  83E7 E6 C0                AND     $C0
-108+  83E9 0F                   RRCA
-109+  83EA 0F                   RRCA
-110+  83EB 0F                   RRCA
-111+  83EC 20 02                JR      NZ,YSC384SkipLoad112
-112+  83EE 3E 88                LD      A,$C0-$38
-113+  83F0              YSC384SkipLoad112:
-114+  83F0 C6 38                ADD     A,$38
-115+  83F2 84                   ADD     A,H
-116+  83F3 67                   LD      H,A
-117+  83F4 C9                   RET
-118+  83F5              YSC384Low112:
-119+  83F5 84                   ADD     A,H
-120+  83F6 67                   LD      H,A
-121+  83F7 C9                   RET
-122+  83F8
-123+  83F8              SA384_112:
-124+  83F8 7C                   LD      A,H
-125+  83F9 E6 D8                AND     $D8
-126+  83FB F2 00 84             JP      P,SA384Positive112
-127+  83FE C6 44                ADD     A,$86-$C0-$C2+$40
-128+  8400              SA384Positive112:
-129+  8400 C6 82                ADD     A,$C2-$40
-130+  8402 0F                   RRCA
-131+  8403 0F                   RRCA
-132+  8404 0F                   RRCA
-133+  8405 AC                   XOR     H
-134+  8406 E6 DF                AND     $DF
-135+  8408 AC                   XOR     H
-136+  8409 67                   LD      H,A
-137+  840A C9                   RET
-138+  840B
-# file closed: mode_384.asm
-311   840B                      INCLUDE "src/video_mode_control.asm"
-# file opened: video_mode_control.asm
-  1+  840B              ; =========================================================================
-  2+  840B              ; PROJECT112 — VIDEO MODE CONTROL PIPELINE
-  3+  840B              ; Cyclic mode selection, hardware register and paging setup.
-  4+  840B              ; =========================================================================
-  5+  840B
-  6+  840B              SwitchToNextVideoMode:
-  7+  840B 3A A1 84             LD      A,(Current_Mode_Index)
-  8+  840E 3C                   INC     A
-  9+  840F FE 05                CP      Mode_Count
- 10+  8411 38 01                JR      C,ModeIndexReady112
- 11+  8413 AF                   XOR     A
- 12+  8414              ModeIndexReady112:
- 13+  8414 32 A1 84             LD      (Current_Mode_Index),A
- 14+  8417 CD 1E 84             CALL    ApplyVideoMode
- 15+  841A CD 50 80             CALL    DrawDemoScreen
- 16+  841D C9                   RET
- 17+  841E
- 18+  841E              ApplyVideoMode:
- 19+  841E 21 56 84             LD      HL,Debug_ModeApply112
- 20+  8421 CD 28 80             CALL    DebugPrintString112
- 21+  8424 3A A1 84             LD      A,(Current_Mode_Index)
- 22+  8427 6F                   LD      L,A
- 23+  8428 26 00                LD      H,0
- 24+  842A 11 69 84             LD      DE,Mode_Hardware_Bytes
- 25+  842D 19                   ADD     HL,DE
- 26+  842E 7E                   LD      A,(HL)
- 27+  842F 32 55 84             LD      (Current_Mode_Byte),A
- 28+  8432 01 F7 EF             LD      BC,$EFF7
- 29+  8435 ED 79                OUT     (C),A
- 30+  8437
- 31+  8437 3A A1 84             LD      A,(Current_Mode_Index)
- 32+  843A FE 04                CP      4
- 33+  843C 3E 10                LD      A,$10
- 34+  843E 20 02                JR      NZ,ModePageReady112
- 35+  8440 3E 04                LD      A,$04
- 36+  8442              ModePageReady112:
- 37+  8442 01 FD 7F             LD      BC,$7FFD
- 38+  8445 ED 79                OUT     (C),A
- 39+  8447
- 40+  8447 3A A1 84             LD      A,(Current_Mode_Index)
- 41+  844A 6F                   LD      L,A
- 42+  844B 26 00                LD      H,0
- 43+  844D 11 6E 84             LD      DE,Mode_Border_Colors
- 44+  8450 19                   ADD     HL,DE
- 45+  8451 7E                   LD      A,(HL)
- 46+  8452 D3 FE                OUT     ($FE),A
- 47+  8454 C9                   RET
- 48+  8455
- 49+  8455
- 50+  8455              ; Mode-control constants and lookup tables.
- 51+  8455              Mode_Count             EQU 5
- 52+  8455 00           Current_Mode_Byte:     DB 0
- 53+  8456 56 49 44 45  Debug_ModeApply112:    DEFM "VIDEO MODE APPLY",13,10,0
- 53+  845A 4F 20 4D 4F
- 53+  845E 44 45 20 41
- 53+  8462 50 50 4C 59
- 53+  8466 0D 0A 00
- 54+  8469
- 55+  8469              ; UnrealSpeccy / Pentagon 1024 mode bits:
- 56+  8469              ; D0=16-color, D1=512x192, D5=hardware multicolor, D6=384x304.
- 57+  8469              Mode_Hardware_Bytes:
- 58+  8469 00                   DB      $00
- 59+  846A 02                   DB      $02
- 60+  846B 20                   DB      $20
- 61+  846C 01                   DB      $01
- 62+  846D 40                   DB      $40
- 63+  846E
- 64+  846E              Mode_Border_Colors:
- 65+  846E 01 02 04 05          DB      1,2,4,5,6
- 65+  8472 06
- 66+  8473
-# file closed: video_mode_control.asm
-312   8473                      INCLUDE "src/keyboard.asm"
+ 25   800F 21 EA 83             LD      HL,Debug_BuildVersion112
+ 26   8012 CD 52 80             CALL    DebugPrintString112
+ 27   8015 21 10 84             LD      HL,Debug_RuntimeStart112
+ 28   8018 CD 52 80             CALL    DebugPrintString112
+ 29   801B
+ 30   801B AF                   XOR     A
+ 31   801C 01 FD 7F             LD      BC,$7FFD
+ 32   801F ED 79                OUT     (C),A
+ 33   8021
+ 34   8021                      ; Стартуем в режиме Sinclair напрямую
+ 35   8021 3E C3                LD      A,$C3
+ 36   8023 01 77 FF             LD      BC,$FF77
+ 37   8026 ED 79                OUT     (C),A
+ 38   8028
+ 39   8028 AF                   XOR     A
+ 40   8029 32 D7 83             LD      (Current_Mode_Index),A
+ 41   802C CD E3 80             CALL    DrawDemoScreen
+ 42   802F 21 3D 84             LD      HL,Debug_Ready112
+ 43   8032 CD 52 80             CALL    DebugPrintString112
+ 44   8035 C3 38 80             JP      MainLoop112
+ 45   8038
+ 46   8038              ; -------------------------------------------------------------------------
+ 47   8038              ; Main Loop & Debug Output
+ 48   8038              ; -------------------------------------------------------------------------
+ 49   8038              MainLoop112:
+ 50   8038                      INCLUDE "src/keyboard.asm"
 # file opened: keyboard.asm
-  1+  8473              ; =========================================================================
-  2+  8473              ; PROJECT112 — KEYBOARD POLLING MODULE
-  3+  8473              ; Space: keyboard row $7FFE, bit 0, active low.
-  4+  8473              ; Waits for release to prevent repeated mode changes while held.
-  5+  8473              ; =========================================================================
-  6+  8473
-  7+  8473              MainLoop112:
-  8+  8473                      ; Space is bit 0 of keyboard row $7FFE (active low).
-  9+  8473 01 FE 7F             LD      BC,$7FFE
- 10+  8476 ED 78                IN      A,(C)
- 11+  8478 CB 47                BIT     0,A
- 12+  847A 28 02                JR      Z,SpacePressed112
- 13+  847C
- 14+  847C                      ; Space advances one mode after key release.
- 15+  847C 18 F5                JR      MainLoop112
- 16+  847E
- 17+  847E              SpacePressed112:
- 18+  847E              WaitSpaceRelease112:
- 19+  847E ED 78                IN      A,(C)
- 20+  8480 CB 47                BIT     0,A
- 21+  8482 28 FA                JR      Z,WaitSpaceRelease112
- 22+  8484 21 8F 84             LD      HL,Debug_SpacePressed112
- 23+  8487 CD 28 80             CALL    DebugPrintString112
- 24+  848A CD 0B 84             CALL    SwitchToNextVideoMode
- 25+  848D 18 E4                JR      MainLoop112
- 26+  848F
- 27+  848F              ; Keyboard module debug text.
- 28+  848F 53 50 41 43  Debug_SpacePressed112: DEFM "SPACE PRESSED",13,10,0
- 28+  8493 45 20 50 52
- 28+  8497 45 53 53 45
- 28+  849B 44 0D 0A 00
- 29+  849F
+  1+  8038              ; =========================================================================
+  2+  8038              ; PROJECT112 — KEYBOARD POLLING (Sub-module)
+  3+  8038              ; =========================================================================
+  4+  8038 01 FE 7F             LD      BC,$7FFE
+  5+  803B ED 78                IN      A,(C)
+  6+  803D CB 47                BIT     0,A
+  7+  803F 28 02                JR      Z,SpacePressed112
+  8+  8041 18 F5                JR      MainLoop112
+  9+  8043
+ 10+  8043              SpacePressed112:
+ 11+  8043              WaitSpaceRelease112:
+ 12+  8043 ED 78                IN      A,(C)
+ 13+  8045 CB 47                BIT     0,A
+ 14+  8047 28 FA                JR      Z,WaitSpaceRelease112
+ 15+  8049 21 71 84             LD      HL,Debug_SpacePressed112
+ 16+  804C CD 52 80             CALL    DebugPrintString112
+ 17+  804F C3 60 80             JP      SwitchToNextVideoMode
+ 18+  8052
 # file closed: keyboard.asm
-313   849F
-314   849F              ; -------------------------------------------------------------------------
-315   849F              ; Data
-316   849F              ; -------------------------------------------------------------------------
-317   849F 00 00        Saved_SP_112:          DW 0
-318   84A1 00           Current_Mode_Index:    DB 0
-319   84A2 00           Temp_Character112:     DB 0
-320   84A3 00           Temp_X112:             DB 0
-321   84A4 00           Temp_Y112:             DB 0
-322   84A5 00           GlyphLine112:          DB 0
-323   84A6 00 00        FontPointer112:        DW 0
-324   84A8 00           Temp_FontByte112:      DB 0
-325   84A9 20           Demo_Character112:     DB 32
-326   84AA 00           Demo_Row112:           DB 0
-327   84AB 00           Demo_Column112:        DB 0
-328   84AC 20           Grid_Width112:         DB 32
-329   84AD 18           Grid_Height112:        DB 24
-330   84AE 00 00        ColorOffset112:        DW 0
-331   84B0 00           ColorShiftByte112:    DB 0
-332   84B1 00           ColorPlaneIndex112:   DB 0
-333   84B2 00           ColorByte112:         DB 0
-334   84B3
-335   84B3 50 31 31 32  Debug_RuntimeStart112: DEFM "P112 RUNNING",13,10,0
-335   84B7 20 52 55 4E
-335   84BB 4E 49 4E 47
-335   84BF 0D 0A 00
-336   84C2 53 43 52 45  Debug_ScreenDrawn112:  DEFM "SCREEN DRAWN",13,10,0
-336   84C6 45 4E 20 44
-336   84CA 52 41 57 4E
-336   84CE 0D 0A 00
-337   84D1 56 49 44 45  Debug_Ready112:        DEFM "VIDEO TEST READY",13,10,0
-337   84D5 4F 20 54 45
-337   84D9 53 54 20 52
-337   84DD 45 41 44 59
-337   84E1 0D 0A 00
-338   84E4
-339   84E4 4D 4F 44 45  Text_ModePrefix112:   DEFM "MODE: ",0
-339   84E8 3A 20 00
-340   84EB
-341   84EB              Mode_Name_Pointers:
-342   84EB F5 84                DW ModeName_Standard112
-343   84ED 06 85                DW ModeName_512112
-344   84EF 0E 85                DW ModeName_HardwareMC112
-345   84F1 1D 85                DW ModeName_16Color112
-346   84F3 2F 85                DW ModeName_384112
-347   84F5
-348   84F5 53 54 41 4E  ModeName_Standard112:  DEFM "STANDARD 256x192",0
-348   84F9 44 41 52 44
-348   84FD 20 32 35 36
-348   8501 78 31 39 32
-348   8505 00
-349   8506 35 31 32 78  ModeName_512112:       DEFM "512x192",0
-349   850A 31 39 32 00
-350   850E 41 34 42 20  ModeName_HardwareMC112:DEFM "A4B MULTICOLOR",0
-350   8512 4D 55 4C 54
-350   8516 49 43 4F 4C
-350   851A 4F 52 00
-351   851D 31 36 2D 43  ModeName_16Color112:   DEFM "16-COLOR 2PX/BYTE",0
-351   8521 4F 4C 4F 52
-351   8525 20 32 50 58
-351   8529 2F 42 59 54
-351   852D 45 00
-352   852F 50 45 4E 54  ModeName_384112:       DEFM "PENTAGON 384x304",0
-352   8533 41 47 4F 4E
-352   8537 20 33 38 34
-352   853B 78 33 30 34
-352   853F 00
-353   8540
-354   8540
-355   8540              ; Index is the two adjacent glyph pixels: left in bit 1, right in bit 0.
-356   8540              ; White=15, black=0, encoded with Pentagon 16-color component wiring.
-357   8540              ColorPairValues112:
-358   8540 00 B8 47 FF          DB      $00,$B8,$47,$FF
-359   8544              ColorPlaneBases112:
-360   8544 00 C0 00 40          DW      $C000,$4000,$E000,$6000
-360   8548 00 E0 00 60
-361   854C
-362   854C 00 00 00...          ALIGN   256
-363   8600              Font88_112:
-364   8600                      INCBIN  "src/font88.bin"
-365   8900
-366   8900              ProgramEnd112:
-367   8900
-368   8900              ; =========================================================================
-369   8900              ; =========================================================================
-370   8900              ; TR-DOS BASIC loader
-371   8900              ; =========================================================================
-372   8900                      ORG     $B000
-373   B000              CLEAR       EQU $FD
-374   B000              LOAD        EQU $EF
-375   B000              CODE        EQU $AF
-376   B000              REM         EQU $EA
-377   B000              RANDOMIZE   EQU $F9
-378   B000              USR         EQU $C0
-379   B000              OUT_CMD     EQU $DF
-380   B000
-381   B000              VAL         EQU $B0
-382   B000              basic_loader:
-383   B000 00 0A                DB      0,10
-384   B002 0D 00                DW      l10_len
-385   B004              l10:
-386   B004 FD 33 32 37          DB      CLEAR, "32767", $0E, 0, 0
-386   B008 36 37 0E 00
-386   B00C 00
-387   B00D FF 7F                DW      32767
-388   B00F 00 0D                DB      0, $0D
-389   B011              l10_len EQU     $-l10
-390   B011
-391   B011 00 14                DB      0,20
-392   B013 2A 00                DW      l20_len
-393   B015              l20:
-394   B015 F9 C0 31 35          DB      RANDOMIZE, USR, "15619", $0E, 0, 0
-394   B019 36 31 39 0E
-394   B01D 00 00
-395   B01F 03 3D                DW      15619
-396   B021 00                   DB      0
-397   B022 3A EA 3A             DB      $3A, REM, $3A
-398   B025 4C 4F 41 44          DB      "LOAD ", 34, "proj112", 34, " CODE 32768", $0D
-398   B029 20 22 70 72
-398   B02D 6F 6A 31 31
-398   B031 32 22 20 43
-398   B035 4F 44 45 20
-398   B039 33 32 37 36
-398   B03D 38 0D
-399   B03F              l20_len EQU     $-l20
-400   B03F
-401   B03F 00 1E                DB      0,30
-402   B041 0E 00                DW      l30_len
-403   B043              l30:
-404   B043 F9 C0 33 32          DB      RANDOMIZE,USR,"32768",$0E,0,0
-404   B047 37 36 38 0E
-404   B04B 00 00
-405   B04D 00 80                DW      32768
-406   B04F 00 0D                DB      0, $0D
-407   B051              l30_len EQU     $-l30
-408   B051              basic_loader_end:
-409   B051
-410   B051                      SAVETRD "project112.TRD","proj112.B",basic_loader,basic_loader_end-basic_loader,10
-411   B051                      SAVETRD "project112.TRD","proj112.C",$8000,ProgramEnd112-$8000
-412   B051
+ 51   8052
+ 52   8052              DebugPrintString112:
+ 53   8052 F5                   PUSH    AF
+ 54   8053 E5                   PUSH    HL
+ 55   8054              DebugPrintLoop112:
+ 56   8054 7E                   LD      A,(HL)
+ 57   8055 B7                   OR      A
+ 58   8056 28 05                JR      Z,DebugPrintDone112
+ 59   8058 D3 EF                OUT     (#EF),A
+ 60   805A 23                   INC     HL
+ 61   805B 18 F7                JR      DebugPrintLoop112
+ 62   805D              DebugPrintDone112:
+ 63   805D E1                   POP     HL
+ 64   805E F1                   POP     AF
+ 65   805F C9                   RET
+ 66   8060
+ 67   8060              ; -------------------------------------------------------------------------
+ 68   8060              ; Video Drivers & Modules (Includes)
+ 69   8060              ; -------------------------------------------------------------------------
+ 70   8060                      INCLUDE "src/video_mode_control.asm"
+# file opened: video_mode_control.asm
+  1+  8060              ; =========================================================================
+  2+  8060              ; PROJECT112 — VIDEO MODE CONTROL (Аппаратный фикс через ПЗУ TR-DOS)
+  3+  8060              ; =========================================================================
+  4+  8060              SwitchToNextVideoMode:
+  5+  8060 3A D7 83             LD      A,(Current_Mode_Index)
+  6+  8063 3C                   INC     A
+  7+  8064 FE 04                CP      4
+  8+  8066 38 01                JR      C,ModeIndexReady112
+  9+  8068 AF                   XOR     A
+ 10+  8069              ModeIndexReady112:
+ 11+  8069 32 D7 83             LD      (Current_Mode_Index),A
+ 12+  806C B7                   OR      A
+ 13+  806D 28 20                JR      Z,RestoreSinclairMemoryMap112
+ 14+  806F
+ 15+  806F                      ; -----------------------------------------------------------------
+ 16+  806F                      ; ШАГ 1: Активируем DOSEN и сбрасываем бит A9 (CPM=0).
+ 17+  806F                      ; Делаем это через официальную точку ПЗУ TR-DOS #3D2F.
+ 18+  806F                      ; -----------------------------------------------------------------
+ 19+  806F 01 7F 80             LD      BC,ShadowPortsOpened112 ; Адрес возврата в ОЗУ после ПЗУ
+ 20+  8072 C5                   PUSH    BC
+ 21+  8073
+ 22+  8073 01 53 2A             LD      BC,#2A53                ; Адрес команды OUT (C),A внутри ПЗУ TR-DOS
+ 23+  8076 C5                   PUSH    BC                      ; Толкаем на стек для выполнения RET из ПЗУ
+ 24+  8077
+ 25+  8077                      ; Формируем адрес порта: A9=0 (открыть порты), A14=0 (доступ к палитре)
+ 26+  8077 01 77 01             LD      BC,#0177
+ 27+  807A 3E C3                LD      A,$C3                   ; Временно удерживаем режим Sinclair (RG=3)
+ 28+  807C C3 2F 3D             JP      #3D2F                   ; Прыгаем в ПЗУ. Оно выполнит OUT и вернется к нам
+ 29+  807F
+ 30+  807F              ShadowPortsOpened112:
+ 31+  807F                      ; Теневые порты успешно разблокированы! Теперь диспетчер памяти доступен напрямую.
+ 32+  807F
+ 33+  807F                      ; -----------------------------------------------------------------
+ 34+  807F                      ; ШАГ 2: Маппим страницы видеопамяти ATM в Окна 1 и 3
+ 35+  807F                      ; -----------------------------------------------------------------
+ 36+  807F 3E 7A                LD      A,$7A                   ; Инверсный номер страницы ОЗУ 5
+ 37+  8081 01 F7 7F             LD      BC,$7FF7
+ 38+  8084 ED 79                OUT     (C),A                   ; Подключаем в окно $4000-$7FFF
+ 39+  8086
+ 40+  8086 3E 7E                LD      A,$7E                   ; Инверсный номер страницы ОЗУ 1
+ 41+  8088 01 F7 FF             LD      BC,$FFF7
+ 42+  808B ED 79                OUT     (C),A                   ; Подключаем в окно $C000-$FFFF
+ 43+  808D 18 16                JR      PrepareVideoRegister112
+ 44+  808F
+ 45+  808F              RestoreSinclairMemoryMap112:
+ 46+  808F                      ; Возвращаем стандартную карту памяти ZX-128
+ 47+  808F 3E 7F                LD      A,$7F                   ; Инверсная страница ОЗУ 0
+ 48+  8091 01 F7 FF             LD      BC,$FFF7
+ 49+  8094 ED 79                OUT     (C),A
+ 50+  8096 AF                   XOR     A
+ 51+  8097 01 FD 7F             LD      BC,$7FFD
+ 52+  809A ED 79                OUT     (C),A
+ 53+  809C
+ 54+  809C                      ; Закрываем теневые порты обратно, устанавливая бит A9=1 (CPM=1)
+ 55+  809C 3E C3                LD      A,$C3                   ; Режим Sinclair (RG=3)
+ 56+  809E 01 77 FF             LD      BC,#FF77
+ 57+  80A1 ED 79                OUT     (C),A
+ 58+  80A3 18 31                JR      VideoModePostSwitch112
+ 59+  80A5
+ 60+  80A5              PrepareVideoRegister112:
+ 61+  80A5                      ; Извлекаем значение регистра из таблицы
+ 62+  80A5 3A D7 83             LD      A,(Current_Mode_Index)
+ 63+  80A8 87                   ADD     A,A
+ 64+  80A9 5F                   LD      E,A
+ 65+  80AA 16 00                LD      D,0
+ 66+  80AC 21 4B 82             LD      HL,VideoModeRegisterTable112
+ 67+  80AF 19                   ADD     HL,DE
+ 68+  80B0 7E                   LD      A,(HL)
+ 69+  80B1 F6 C0                OR      $C0                     ; Маскируем обязательные биты VE1=1, VE0=1
+ 70+  80B3
+ 71+  80B3                      ; -----------------------------------------------------------------
+ 72+  80B3                      ; ШАГ 3: Стабилизация через Окно 3 (Адрес $FFEC)
+ 73+  80B3                      ; Собираем код на стеке промаппленной и стабильной страницы 1
+ 74+  80B3                      ; -----------------------------------------------------------------
+ 75+  80B3 32 E2 80             LD      (Safe_Reg_A_112),A      ; Сохраняем А
+ 76+  80B6
+ 77+  80B6 21 EC FF             LD      HL,$FFEC                ; Пишем опкоды в самый верх памяти
+ 78+  80B9
+ 79+  80B9 36 01                LD      (HL),$01                ; Опкод: LD BC, $FF77
+ 80+  80BB 23                   INC     HL
+ 81+  80BC 36 77                LD      (HL),$77
+ 82+  80BE 23                   INC     HL
+ 83+  80BF 36 FF                LD      (HL),$FF
+ 84+  80C1 23                   INC     HL
+ 85+  80C2
+ 86+  80C2 36 ED                LD      (HL),$ED                ; Опкод: OUT (C), A
+ 87+  80C4 23                   INC     HL
+ 88+  80C5 36 79                LD      (HL),$79
+ 89+  80C7 23                   INC     HL
+ 90+  80C8
+ 91+  80C8 36 C3                LD      (HL),$C3                ; Опкод: JP VideoModePostSwitch112
+ 92+  80CA 23                   INC     HL
+ 93+  80CB 36 D6                LD      (HL),VideoModePostSwitch112 & $FF
+ 94+  80CD 23                   INC     HL
+ 95+  80CE 36 80                LD      (HL),(VideoModePostSwitch112 >> 8) & $FF
+ 96+  80D0
+ 97+  80D0 3A E2 80             LD      A,(Safe_Reg_A_112)
+ 98+  80D3 C3 EC FF             JP      $FFEC                   ; Безопасный прыжок в Окно 3 на переключение шины!
+ 99+  80D6
+100+  80D6              ; Сюда управление вернется без единого сбоя адресных линий
+101+  80D6              VideoModePostSwitch112:
+102+  80D6 21 88 84             LD      HL,Debug_ModeApplied112
+103+  80D9 CD 52 80             CALL    DebugPrintString112
+104+  80DC CD E3 80             CALL    DrawDemoScreen
+105+  80DF C3 38 80             JP      MainLoop112
+106+  80E2
+107+  80E2 00           Safe_Reg_A_112:        DB 0
+108+  80E3
+109+  80E3              ; -------------------------------------------------------------------------
+110+  80E3              ; Геометрия демонстрационных экранов
+111+  80E3              ; -------------------------------------------------------------------------
+112+  80E3              DrawDemoScreen:
+113+  80E3 CD 41 82             CALL    ClearVideoMemory112
+114+  80E6 3A D7 83             LD      A,(Current_Mode_Index)
+115+  80E9 FE 03                CP      3
+116+  80EB 28 00                JR      Z,DrawDemoCharacterGrid112
+117+  80ED
+118+  80ED              DrawDemoCharacterGrid112:
+119+  80ED 3A D7 83             LD      A,(Current_Mode_Index)
+120+  80F0 B7                   OR      A
+121+  80F1 28 10                JR      Z,GridGeometrySinclair112
+122+  80F3 FE 02                CP      2
+123+  80F5 28 18                JR      Z,GridGeometryEGA112
+124+  80F7
+125+  80F7 3E 50                LD      A,80
+126+  80F9 32 E2 83             LD      (Grid_Width112),A
+127+  80FC 3E 19                LD      A,25
+128+  80FE 32 E3 83             LD      (Grid_Height112),A
+129+  8101 18 16                JR      GridGeometryReady112
+130+  8103
+131+  8103              GridGeometrySinclair112:
+132+  8103 3E 20                LD      A,32
+133+  8105 32 E2 83             LD      (Grid_Width112),A
+134+  8108 3E 18                LD      A,24
+135+  810A 32 E3 83             LD      (Grid_Height112),A
+136+  810D 18 0A                JR      GridGeometryReady112
+137+  810F
+138+  810F              GridGeometryEGA112:
+139+  810F 3E 28                LD      A,40
+140+  8111 32 E2 83             LD      (Grid_Width112),A
+141+  8114 3E 19                LD      A,25
+142+  8116 32 E3 83             LD      (Grid_Height112),A
+143+  8119
+144+  8119              GridGeometryReady112:
+145+  8119 21 9D 84             LD      HL,Text_ModePrefix112
+146+  811C 0E 00                LD      C,0
+147+  811E 16 00                LD      D,0
+148+  8120 CD C7 81             CALL    PrintString112
+149+  8123
+150+  8123 3A D7 83             LD      A,(Current_Mode_Index)
+151+  8126 87                   ADD     A,A
+152+  8127 5F                   LD      E,A
+153+  8128 16 00                LD      D,0
+154+  812A 21 A4 84             LD      HL,Mode_Name_Pointers
+155+  812D 19                   ADD     HL,DE
+156+  812E 5E                   LD      E,(HL)
+157+  812F 23                   INC     HL
+158+  8130 56                   LD      D,(HL)
+159+  8131 EB                   EX      DE,HL
+160+  8132 0E 06                LD      C,6
+161+  8134 16 00                LD      D,0
+162+  8136 CD C7 81             CALL    PrintString112
+163+  8139
+164+  8139 3E 20                LD      A,32
+165+  813B 32 DF 83             LD      (Demo_Character112),A
+166+  813E 3E 01                LD      A,1
+167+  8140 32 E0 83             LD      (Demo_Row112),A
+168+  8143
+169+  8143              DemoRowLoop112:
+170+  8143 AF                   XOR     A
+171+  8144 32 E1 83             LD      (Demo_Column112),A
+172+  8147
+173+  8147              DemoColumnLoop112:
+174+  8147 3A E1 83             LD      A,(Demo_Column112)
+175+  814A 4F                   LD      C,A
+176+  814B 3A E0 83             LD      A,(Demo_Row112)
+177+  814E 57                   LD      D,A
+178+  814F
+179+  814F 3A E0 83             LD      A,(Demo_Row112)
+180+  8152 47                   LD      B,A
+181+  8153 3A E3 83             LD      A,(Grid_Height112)
+182+  8156 3D                   DEC     A
+183+  8157 B8                   CP      B
+184+  8158 28 10                JR      Z,DrawBottomRuler112
+185+  815A
+186+  815A 3A E1 83             LD      A,(Demo_Column112)
+187+  815D 47                   LD      B,A
+188+  815E 3A E2 83             LD      A,(Grid_Width112)
+189+  8161 3D                   DEC     A
+190+  8162 B8                   CP      B
+191+  8163 28 15                JR      Z,DrawRightRuler112
+192+  8165
+193+  8165 3A DF 83             LD      A,(Demo_Character112)
+194+  8168 18 1E                JR      DrawGridCell112
+195+  816A
+196+  816A              DrawBottomRuler112:
+197+  816A 3A E1 83             LD      A,(Demo_Column112)
+198+  816D 3C                   INC     A
+199+  816E CD BC 81             CALL    Modulo10_112
+200+  8171 B7                   OR      A
+201+  8172 3E 2D                LD      A,'-'
+202+  8174 20 12                JR      NZ,DrawGridCell112
+203+  8176 3E 30                LD      A,'0'
+204+  8178 18 0E                JR      DrawGridCell112
+205+  817A
+206+  817A              DrawRightRuler112:
+207+  817A 3A E0 83             LD      A,(Demo_Row112)
+208+  817D 3C                   INC     A
+209+  817E CD BC 81             CALL    Modulo10_112
+210+  8181 B7                   OR      A
+211+  8182 3E 7C                LD      A,'|'
+212+  8184 20 02                JR      NZ,DrawGridCell112
+213+  8186 3E 30                LD      A,'0'
+214+  8188
+215+  8188              DrawGridCell112:
+216+  8188 CD D3 81             CALL    PrintChar112
+217+  818B
+218+  818B 3A DF 83             LD      A,(Demo_Character112)
+219+  818E 3C                   INC     A
+220+  818F FE 7F                CP      127
+221+  8191 38 02                JR      C,GridCharReady112
+222+  8193 3E 20                LD      A,32
+223+  8195              GridCharReady112:
+224+  8195 32 DF 83             LD      (Demo_Character112),A
+225+  8198
+226+  8198 3A E1 83             LD      A,(Demo_Column112)
+227+  819B 3C                   INC     A
+228+  819C 32 E1 83             LD      (Demo_Column112),A
+229+  819F 47                   LD      B,A
+230+  81A0 3A E2 83             LD      A,(Grid_Width112)
+231+  81A3 B8                   CP      B
+232+  81A4 20 A1                JR      NZ,DemoColumnLoop112
+233+  81A6
+234+  81A6 3A E0 83             LD      A,(Demo_Row112)
+235+  81A9 3C                   INC     A
+236+  81AA 32 E0 83             LD      (Demo_Row112),A
+237+  81AD 47                   LD      B,A
+238+  81AE 3A E3 83             LD      A,(Grid_Height112)
+239+  81B1 B8                   CP      B
+240+  81B2 C2 43 81             JP      NZ,DemoRowLoop112
+241+  81B5
+242+  81B5 21 2A 84             LD      HL,Debug_ScreenDrawn112
+243+  81B8 CD 52 80             CALL    DebugPrintString112
+244+  81BB C9                   RET
+245+  81BC
+246+  81BC              Modulo10_112:
+247+  81BC C5                   PUSH    BC
+248+  81BD 06 0A                LD      B,10
+249+  81BF              Modulo10Loop112:
+250+  81BF B8                   CP      B
+251+  81C0 38 03                JR      C,Modulo10Done112
+252+  81C2 90                   SUB     B
+253+  81C3 18 FA                JR      Modulo10Loop112
+254+  81C5              Modulo10Done112:
+255+  81C5 C1                   POP     BC
+256+  81C6 C9                   RET
+257+  81C7
+258+  81C7              PrintString112:
+259+  81C7 7E                   LD      A,(HL)
+260+  81C8 B7                   OR      A
+261+  81C9 C8                   RET     Z
+262+  81CA E5                   PUSH    HL
+263+  81CB CD D3 81             CALL    PrintChar112
+264+  81CE E1                   POP     HL
+265+  81CF 23                   INC     HL
+266+  81D0 0C                   INC     C
+267+  81D1 18 F4                JR      PrintString112
+268+  81D3
+269+  81D3              PrintChar112:
+270+  81D3 C5                   PUSH    BC
+271+  81D4 D5                   PUSH    DE
+272+  81D5 E5                   PUSH    HL
+273+  81D6 32 D8 83             LD      (Temp_Character112),A
+274+  81D9 79                   LD      A,C
+275+  81DA 32 D9 83             LD      (Temp_X112),A
+276+  81DD 7A                   LD      A,D
+277+  81DE 32 DA 83             LD      (Temp_Y112),A
+278+  81E1
+279+  81E1 3A D7 83             LD      A,(Current_Mode_Index)
+280+  81E4 FE 03                CP      3
+281+  81E6 28 52                JR      Z,PrintCharATMText112
+282+  81E8
+283+  81E8 3A D8 83             LD      A,(Temp_Character112)
+284+  81EB FE 20                CP      32
+285+  81ED DA 3D 82             JP      C,PrintCharDone112
+286+  81F0 D6 20                SUB     32
+287+  81F2 6F                   LD      L,A
+288+  81F3 26 00                LD      H,0
+289+  81F5 29                   ADD     HL,HL
+290+  81F6 29                   ADD     HL,HL
+291+  81F7 29                   ADD     HL,HL
+292+  81F8 11 00 86             LD      DE,Font88_112
+293+  81FB 19                   ADD     HL,DE
+294+  81FC 22 DC 83             LD      (FontPointer112),HL
+295+  81FF
+296+  81FF AF                   XOR     A
+297+  8200 32 DB 83             LD      (GlyphLine112),A
+298+  8203
+299+  8203              GlyphLineLoop112:
+300+  8203 2A DC 83             LD      HL,(FontPointer112)
+301+  8206 7E                   LD      A,(HL)
+302+  8207 32 DE 83             LD      (Temp_FontByte112),A
+303+  820A 23                   INC     HL
+304+  820B 22 DC 83             LD      (FontPointer112),HL
+305+  820E
+306+  820E 3A D7 83             LD      A,(Current_Mode_Index)
+307+  8211 B7                   OR      A
+308+  8212 CC 61 82             CALL    Z,RenderGlyph_Standard112
+309+  8215 3A D7 83             LD      A,(Current_Mode_Index)
+310+  8218 FE 01                CP      1
+311+  821A CC C1 82             CALL    Z,RenderGlyph_ATM640112
+312+  821D 3A D7 83             LD      A,(Current_Mode_Index)
+313+  8220 FE 02                CP      2
+314+  8222 CC F4 82             CALL    Z,RenderGlyph_ATMEGA112
+315+  8225
+316+  8225 3A DB 83             LD      A,(GlyphLine112)
+317+  8228 3C                   INC     A
+318+  8229 32 DB 83             LD      (GlyphLine112),A
+319+  822C FE 08                CP      8
+320+  822E C2 03 82             JP      NZ,GlyphLineLoop112
+321+  8231
+322+  8231 3A D7 83             LD      A,(Current_Mode_Index)
+323+  8234 B7                   OR      A
+324+  8235 CC 8B 82             CALL    Z,RenderAttributes_Standard112
+325+  8238 18 03                JR      PrintCharDone112
+326+  823A
+327+  823A              PrintCharATMText112:
+328+  823A CD 47 83             CALL    RenderChar_ATMText112
+329+  823D
+330+  823D              PrintCharDone112:
+331+  823D E1                   POP     HL
+332+  823E D1                   POP     DE
+333+  823F C1                   POP     BC
+334+  8240 C9                   RET
+335+  8241
+336+  8241              ClearVideoMemory112:
+337+  8241 3A D7 83             LD      A,(Current_Mode_Index)
+338+  8244 B7                   OR      A
+339+  8245 CA 53 82             JP      Z,ClearVideoMemory_Standard112
+340+  8248 C3 A6 82             JP      ClearVideoMemory_ATM112
+341+  824B
+342+  824B              VideoModeRegisterTable112:
+343+  824B 03 00                DB 3,0                  ; Sinclair 256x192
+344+  824D 02 00                DB 2,0                  ; ATM 640x200 Multicolor
+345+  824F 00 00                DB 0,0                  ; ATM EGA 320x200
+346+  8251 06 00                DB 6,0                  ; ATM Text 80x25
+347+  8253
+# file closed: video_mode_control.asm
+ 71   8253                      INCLUDE "src/mode_standard.asm"
+# file opened: mode_standard.asm
+  1+  8253              ; PROJECT112 — native ZX Spectrum 256x192 video driver.
+  2+  8253              ; The standard screen is RAM page 5 at $4000. No ATM page-port writes here.
+  3+  8253
+  4+  8253              ClearVideoMemory_Standard112:
+  5+  8253 21 00 40             LD HL,$4000
+  6+  8256 11 01 40             LD DE,$4001
+  7+  8259 01 FF 1A             LD BC,6911
+  8+  825C AF                   XOR A
+  9+  825D 77                   LD (HL),A
+ 10+  825E ED B0                LDIR
+ 11+  8260 C9                   RET
+ 12+  8261
+ 13+  8261              RenderGlyph_Standard112:
+ 14+  8261                      ; pixel_y = character_row*8 + glyph_line
+ 15+  8261 3A DA 83             LD A,(Temp_Y112)
+ 16+  8264 87                   ADD A,A
+ 17+  8265 87                   ADD A,A
+ 18+  8266 87                   ADD A,A
+ 19+  8267 47                   LD B,A
+ 20+  8268 3A DB 83             LD A,(GlyphLine112)
+ 21+  826B 80                   ADD A,B
+ 22+  826C 47                   LD B,A
+ 23+  826D
+ 24+  826D                      ; H = $40 | ((pixel_y & $C0) >> 3) | (pixel_y & 7)
+ 25+  826D 78                   LD A,B
+ 26+  826E E6 C0                AND $C0
+ 27+  8270 0F                   RRCA
+ 28+  8271 0F                   RRCA
+ 29+  8272 0F                   RRCA
+ 30+  8273 4F                   LD C,A
+ 31+  8274 78                   LD A,B
+ 32+  8275 E6 07                AND $07
+ 33+  8277 B1                   OR C
+ 34+  8278 F6 40                OR $40
+ 35+  827A 67                   LD H,A
+ 36+  827B
+ 37+  827B                      ; L = ((pixel_y & $38) << 2) | character_column
+ 38+  827B 78                   LD A,B
+ 39+  827C E6 38                AND $38
+ 40+  827E 07                   RLCA
+ 41+  827F 07                   RLCA
+ 42+  8280 6F                   LD L,A
+ 43+  8281 3A D9 83             LD A,(Temp_X112)
+ 44+  8284 B5                   OR L
+ 45+  8285 6F                   LD L,A
+ 46+  8286 3A DE 83             LD A,(Temp_FontByte112)
+ 47+  8289 77                   LD (HL),A
+ 48+  828A C9                   RET
+ 49+  828B
+ 50+  828B              RenderAttributes_Standard112:
+ 51+  828B 3A DA 83             LD A,(Temp_Y112)
+ 52+  828E 6F                   LD L,A
+ 53+  828F 26 00                LD H,0
+ 54+  8291 29                   ADD HL,HL
+ 55+  8292 29                   ADD HL,HL
+ 56+  8293 29                   ADD HL,HL
+ 57+  8294 29                   ADD HL,HL
+ 58+  8295 29                   ADD HL,HL
+ 59+  8296 11 00 58             LD DE,$5800
+ 60+  8299 19                   ADD HL,DE
+ 61+  829A 3A D9 83             LD A,(Temp_X112)
+ 62+  829D 85                   ADD A,L
+ 63+  829E 6F                   LD L,A
+ 64+  829F 30 01                JR NC,StandardAttrReady112
+ 65+  82A1 24                   INC H
+ 66+  82A2              StandardAttrReady112:
+ 67+  82A2 3E 47                LD A,$47
+ 68+  82A4 77                   LD (HL),A
+ 69+  82A5 C9                   RET
+ 70+  82A6
+# file closed: mode_standard.asm
+ 72   82A6                      INCLUDE "src/mode_atm.asm"
+# file opened: mode_atm.asm
+  1+  82A6              ; =========================================================================
+  2+  82A6              ; PROJECT112 — ATM TURBO 2+ v7.10 VIDEO MEMORY
+  3+  82A6              ;
+  4+  82A6              ; Physical RAM page mapping is configured once in main.asm:
+  5+  82A6              ;   CPU $4000-$7FFF -> RAM page 5
+  6+  82A6              ;   CPU $C000-$FFFF -> RAM page 1
+  7+  82A6              ;
+  8+  82A6              ; ATM video controller fetches page 5/page 1 in four 8K video regions.
+  9+  82A6              ; All offsets below are relative to the corresponding 16K page.
+ 10+  82A6              ; =========================================================================
+ 11+  82A6
+ 12+  82A6              ClearVideoMemory_ATM112:
+ 13+  82A6                      ; Clear both mapped physical video pages. Keep the program and stack
+ 14+  82A6                      ; in window 2 ($8000-$BFFF), which is not touched here.
+ 15+  82A6 21 00 40             LD      HL,$4000
+ 16+  82A9 11 01 40             LD      DE,$4001
+ 17+  82AC 01 FF 3F             LD      BC,$3FFF
+ 18+  82AF AF                   XOR     A
+ 19+  82B0 77                   LD      (HL),A
+ 20+  82B1 ED B0                LDIR
+ 21+  82B3 21 00 C0             LD      HL,$C000
+ 22+  82B6 11 01 C0             LD      DE,$C001
+ 23+  82B9 01 FF 3F             LD      BC,$3FFF
+ 24+  82BC AF                   XOR     A
+ 25+  82BD 77                   LD      (HL),A
+ 26+  82BE ED B0                LDIR
+ 27+  82C0 C9                   RET
+ 28+  82C1
+ 29+  82C1              ; -------------------------------------------------------------------------
+ 30+  82C1              ; ATM 640x200: 40 bytes per scanline.
+ 31+  82C1              ; Each 8-pixel cell occupies one byte. Even/odd cell columns are separated
+ 32+  82C1              ; into the first/second 8K halves of page 5 and page 1.
+ 33+  82C1              ; -------------------------------------------------------------------------
+ 34+  82C1              RenderGlyph_ATM640112:
+ 35+  82C1 CD 7A 83             CALL    ATM_CalcPixelOffset112
+ 36+  82C4 3A D9 83             LD      A,(Temp_X112)
+ 37+  82C7 E6 01                AND     1
+ 38+  82C9 32 E6 83             LD      (ATM_Parity112),A
+ 39+  82CC
+ 40+  82CC                      ; Bitmap byte in page 5.
+ 41+  82CC 2A E4 83             LD      HL,(ATM_Offset112)
+ 42+  82CF 11 00 40             LD      DE,$4000
+ 43+  82D2 3A E6 83             LD      A,(ATM_Parity112)
+ 44+  82D5 B7                   OR      A
+ 45+  82D6 28 03                JR      Z,ATM640PixelBaseReady112
+ 46+  82D8 11 00 60             LD      DE,$6000
+ 47+  82DB              ATM640PixelBaseReady112:
+ 48+  82DB 19                   ADD     HL,DE
+ 49+  82DC 3A DE 83             LD      A,(Temp_FontByte112)
+ 50+  82DF 77                   LD      (HL),A
+ 51+  82E0
+ 52+  82E0                      ; Attribute byte in page 1, same parity half.
+ 53+  82E0 2A E4 83             LD      HL,(ATM_Offset112)
+ 54+  82E3 11 00 C0             LD      DE,$C000
+ 55+  82E6 3A E6 83             LD      A,(ATM_Parity112)
+ 56+  82E9 B7                   OR      A
+ 57+  82EA 28 03                JR      Z,ATM640AttrBaseReady112
+ 58+  82EC 11 00 E0             LD      DE,$E000
+ 59+  82EF              ATM640AttrBaseReady112:
+ 60+  82EF 19                   ADD     HL,DE
+ 61+  82F0 3E 47                LD      A,$47
+ 62+  82F2 77                   LD      (HL),A
+ 63+  82F3 C9                   RET
+ 64+  82F4
+ 65+  82F4              ; -------------------------------------------------------------------------
+ 66+  82F4              ; ATM EGA 320x200x16.
+ 67+  82F4              ; One character cell is 8 pixels = four two-pixel bytes.
+ 68+  82F4              ; Each scanline has 160 pair bytes, distributed across four 8K regions.
+ 69+  82F4              ; CPU address offset within each region is row*40 + cell_column.
+ 70+  82F4              ;
+ 71+  82F4              ; Pair order across regions (ATM2+ architecture document, section 5.4):
+ 72+  82F4              ;   0: page 1, first half ($C000)
+ 73+  82F4              ;   1: page 5, first half ($4000)
+ 74+  82F4              ;   2: page 1, second half ($E000)
+ 75+  82F4              ;   3: page 5, second half ($6000)
+ 76+  82F4              ; The matching address table is ATM_EGA_PlaneBases112 in main.asm.
+ 77+  82F4              ; -------------------------------------------------------------------------
+ 78+  82F4              RenderGlyph_ATMEGA112:
+ 79+  82F4 CD A7 83             CALL    ATM_CalcEGARowOffset112
+ 80+  82F7                      ; One character cell contributes one byte to each EGA region.
+ 81+  82F7                      ; The per-region column stride is therefore X, not X*4.
+ 82+  82F7 3A D9 83             LD      A,(Temp_X112)
+ 83+  82FA 5F                   LD      E,A
+ 84+  82FB 16 00                LD      D,0
+ 85+  82FD 2A E4 83             LD      HL,(ATM_Offset112)
+ 86+  8300 19                   ADD     HL,DE
+ 87+  8301 22 E4 83             LD      (ATM_Offset112),HL
+ 88+  8304
+ 89+  8304 3A DE 83             LD      A,(Temp_FontByte112)
+ 90+  8307 32 E7 83             LD      (ColorShiftByte112),A
+ 91+  830A AF                   XOR     A
+ 92+  830B 32 E8 83             LD      (ColorPlaneIndex112),A
+ 93+  830E
+ 94+  830E              ATM_EGAPairLoop112:
+ 95+  830E                      ; Extract the next two source pixels, left pixel first.
+ 96+  830E 3A E7 83             LD      A,(ColorShiftByte112)
+ 97+  8311 07                   RLCA
+ 98+  8312 07                   RLCA
+ 99+  8313 32 E7 83             LD      (ColorShiftByte112),A
+100+  8316 E6 03                AND     3
+101+  8318 5F                   LD      E,A
+102+  8319 16 00                LD      D,0
+103+  831B 21 F6 84             LD      HL,ATM_ColorPairValues112
+104+  831E 19                   ADD     HL,DE
+105+  831F 7E                   LD      A,(HL)
+106+  8320 32 E9 83             LD      (ColorByte112),A
+107+  8323
+108+  8323                      ; Select one of the four hardware video regions.
+109+  8323 3A E8 83             LD      A,(ColorPlaneIndex112)
+110+  8326 87                   ADD     A,A
+111+  8327 5F                   LD      E,A
+112+  8328 16 00                LD      D,0
+113+  832A 21 FA 84             LD      HL,ATM_EGA_PlaneBases112
+114+  832D 19                   ADD     HL,DE
+115+  832E 5E                   LD      E,(HL)
+116+  832F 23                   INC     HL
+117+  8330 56                   LD      D,(HL)
+118+  8331 EB                   EX      DE,HL
+119+  8332 ED 5B E4 83          LD      DE,(ATM_Offset112)
+120+  8336 19                   ADD     HL,DE
+121+  8337 3A E9 83             LD      A,(ColorByte112)
+122+  833A 77                   LD      (HL),A
+123+  833B
+124+  833B 3A E8 83             LD      A,(ColorPlaneIndex112)
+125+  833E 3C                   INC     A
+126+  833F 32 E8 83             LD      (ColorPlaneIndex112),A
+127+  8342 FE 04                CP      4
+128+  8344 20 C8                JR      NZ,ATM_EGAPairLoop112
+129+  8346 C9                   RET
+130+  8347
+131+  8347              ; -------------------------------------------------------------------------
+132+  8347              ; ATM 80x25 hardware text.
+133+  8347              ; Page 5 character codes:
+134+  8347              ;   even columns -> $01C0 + row*64 + column/2
+135+  8347              ;   odd columns  -> $21C0 + row*64 + column/2
+136+  8347              ; Page 1 attributes are crossed:
+137+  8347              ;   even columns -> $21C0 + row*64 + column/2
+138+  8347              ;   odd columns  -> $01C0 + row*64 + column/2
+139+  8347              ; -------------------------------------------------------------------------
+140+  8347              RenderChar_ATMText112:
+141+  8347 CD 8A 83             CALL    ATM_CalcTextOffset112
+142+  834A 3A D9 83             LD      A,(Temp_X112)
+143+  834D E6 01                AND     1
+144+  834F 32 E6 83             LD      (ATM_Parity112),A
+145+  8352
+146+  8352                      ; Character code in page 5.
+147+  8352 2A E4 83             LD      HL,(ATM_Offset112)
+148+  8355 11 00 40             LD      DE,$4000
+149+  8358 3A E6 83             LD      A,(ATM_Parity112)
+150+  835B B7                   OR      A
+151+  835C 28 03                JR      Z,ATMTextCharBaseReady112
+152+  835E 11 00 60             LD      DE,$6000
+153+  8361              ATMTextCharBaseReady112:
+154+  8361 19                   ADD     HL,DE
+155+  8362 3A D8 83             LD      A,(Temp_Character112)
+156+  8365 77                   LD      (HL),A
+157+  8366
+158+  8366                      ; Attribute byte in page 1, opposite parity half.
+159+  8366 2A E4 83             LD      HL,(ATM_Offset112)
+160+  8369 11 00 E0             LD      DE,$E000
+161+  836C 3A E6 83             LD      A,(ATM_Parity112)
+162+  836F B7                   OR      A
+163+  8370 28 03                JR      Z,ATMTextAttrBaseReady112
+164+  8372 11 00 C0             LD      DE,$C000
+165+  8375              ATMTextAttrBaseReady112:
+166+  8375 19                   ADD     HL,DE
+167+  8376 3E 47                LD      A,$47
+168+  8378 77                   LD      (HL),A
+169+  8379 C9                   RET
+170+  837A
+171+  837A              ; 640x200 offset: (character_row*8 + glyph_line)*40 + column/2.
+172+  837A              ATM_CalcPixelOffset112:
+173+  837A 3A DA 83             LD      A,(Temp_Y112)
+174+  837D 87                   ADD     A,A
+175+  837E 87                   ADD     A,A
+176+  837F 87                   ADD     A,A
+177+  8380 47                   LD      B,A
+178+  8381 3A DB 83             LD      A,(GlyphLine112)
+179+  8384 80                   ADD     A,B
+180+  8385 CD C5 83             CALL    ATM_CalcYTimes40Only112
+181+  8388 18 2B                JR      ATM_AddHalfColumn112
+182+  838A
+183+  838A              ; 80x25 offset: $01C0 + character_row*64 + column/2.
+184+  838A              ATM_CalcTextOffset112:
+185+  838A 3A DA 83             LD      A,(Temp_Y112)
+186+  838D 6F                   LD      L,A
+187+  838E 26 00                LD      H,0
+188+  8390 29                   ADD     HL,HL
+189+  8391 29                   ADD     HL,HL
+190+  8392 29                   ADD     HL,HL
+191+  8393 29                   ADD     HL,HL
+192+  8394 29                   ADD     HL,HL
+193+  8395 29                   ADD     HL,HL
+194+  8396 11 C0 01             LD      DE,$01C0
+195+  8399 19                   ADD     HL,DE
+196+  839A 3A D9 83             LD      A,(Temp_X112)
+197+  839D CB 3F                SRL     A
+198+  839F 5F                   LD      E,A
+199+  83A0 16 00                LD      D,0
+200+  83A2 19                   ADD     HL,DE
+201+  83A3 22 E4 83             LD      (ATM_Offset112),HL
+202+  83A6 C9                   RET
+203+  83A7
+204+  83A7              ; EGA row offset: (character_row*8 + glyph_line)*40.
+205+  83A7              ATM_CalcEGARowOffset112:
+206+  83A7 3A DA 83             LD      A,(Temp_Y112)
+207+  83AA 87                   ADD     A,A
+208+  83AB 87                   ADD     A,A
+209+  83AC 87                   ADD     A,A
+210+  83AD 47                   LD      B,A
+211+  83AE 3A DB 83             LD      A,(GlyphLine112)
+212+  83B1 80                   ADD     A,B
+213+  83B2 C3 C5 83             JP      ATM_CalcYTimes40Only112
+214+  83B5
+215+  83B5              ATM_AddHalfColumn112:
+216+  83B5 3A D9 83             LD      A,(Temp_X112)
+217+  83B8 CB 3F                SRL     A
+218+  83BA 5F                   LD      E,A
+219+  83BB 16 00                LD      D,0
+220+  83BD 2A E4 83             LD      HL,(ATM_Offset112)
+221+  83C0 19                   ADD     HL,DE
+222+  83C1 22 E4 83             LD      (ATM_Offset112),HL
+223+  83C4 C9                   RET
+224+  83C5
+225+  83C5              ; A*40 = A*5*8. Stores row offset without a column term.
+226+  83C5              ATM_CalcYTimes40Only112:
+227+  83C5 5F                   LD      E,A
+228+  83C6 16 00                LD      D,0
+229+  83C8 6F                   LD      L,A
+230+  83C9 26 00                LD      H,0
+231+  83CB 29                   ADD     HL,HL
+232+  83CC 29                   ADD     HL,HL
+233+  83CD 19                   ADD     HL,DE
+234+  83CE 29                   ADD     HL,HL
+235+  83CF 29                   ADD     HL,HL
+236+  83D0 29                   ADD     HL,HL
+237+  83D1 22 E4 83             LD      (ATM_Offset112),HL
+238+  83D4 C9                   RET
+239+  83D5
+# file closed: mode_atm.asm
+ 73   83D5
+ 74   83D5              ; -------------------------------------------------------------------------
+ 75   83D5              ; Runtime Data & Constants
+ 76   83D5              ; -------------------------------------------------------------------------
+ 77   83D5 00 00        Saved_SP_112:          DW 0
+ 78   83D7 00           Current_Mode_Index:    DB 0
+ 79   83D8 00           Temp_Character112:     DB 0
+ 80   83D9 00           Temp_X112:             DB 0
+ 81   83DA 00           Temp_Y112:             DB 0
+ 82   83DB 00           GlyphLine112:          DB 0
+ 83   83DC 00 00        FontPointer112:        DW 0
+ 84   83DE 00           Temp_FontByte112:      DB 0
+ 85   83DF 20           Demo_Character112:     DB 32
+ 86   83E0 00           Demo_Row112:           DB 0
+ 87   83E1 00           Demo_Column112:        DB 0
+ 88   83E2 20           Grid_Width112:         DB 32
+ 89   83E3 18           Grid_Height112:        DB 24
+ 90   83E4 00 00        ATM_Offset112:         DW 0
+ 91   83E6 00           ATM_Parity112:         DB 0
+ 92   83E7 00           ColorShiftByte112:     DB 0
+ 93   83E8 00           ColorPlaneIndex112:    DB 0
+ 94   83E9 00           ColorByte112:          DB 0
+ 95   83EA
+ 96   83EA 50 31 31 32  Debug_BuildVersion112: DEFM "P112 BUILD ATM710-STACK-20261103.04",13,10,0
+ 96   83EE 20 42 55 49
+ 96   83F2 4C 44 20 41
+ 96   83F6 54 4D 37 31
+ 96   83FA 30 2D 53 54
+ 96   83FE 41 43 4B 2D
+ 96   8402 32 30 32 36
+ 96   8406 31 31 30 33
+ 96   840A 2E 30 34 0D
+ 96   840E 0A 00
+ 97   8410 50 52 4F 4A  Debug_RuntimeStart112: DEFM "PROJECT112 ATM710 START",13,10,0
+ 97   8414 45 43 54 31
+ 97   8418 31 32 20 41
+ 97   841C 54 4D 37 31
+ 97   8420 30 20 53 54
+ 97   8424 41 52 54 0D
+ 97   8428 0A 00
+ 98   842A 41 54 4D 20  Debug_ScreenDrawn112:  DEFM "ATM SCREEN DRAWN",13,10,0
+ 98   842E 53 43 52 45
+ 98   8432 45 4E 20 44
+ 98   8436 52 41 57 4E
+ 98   843A 0D 0A 00
+ 99   843D 56 49 44 45  Debug_Ready112:        DEFM "VIDEO MODE TEST READY",13,10,0
+ 99   8441 4F 20 4D 4F
+ 99   8445 44 45 20 54
+ 99   8449 45 53 54 20
+ 99   844D 52 45 41 44
+ 99   8451 59 0D 0A 00
+100   8455 41 54 4D 36  Debug_RawPattern112:   DEFM "ATM640 RAW MEMORY PATTERN",13,10,0
+100   8459 34 30 20 52
+100   845D 41 57 20 4D
+100   8461 45 4D 4F 52
+100   8465 59 20 50 41
+100   8469 54 54 45 52
+100   846D 4E 0D 0A 00
+101   8471 53 50 41 43  Debug_SpacePressed112: DEFM "SPACE: NEXT ATM MODE",13,10,0
+101   8475 45 3A 20 4E
+101   8479 45 58 54 20
+101   847D 41 54 4D 20
+101   8481 4D 4F 44 45
+101   8485 0D 0A 00
+102   8488 56 49 44 45  Debug_ModeApplied112:  DEFM "VIDEO MODE APPLIED",13,10,0
+102   848C 4F 20 4D 4F
+102   8490 44 45 20 41
+102   8494 50 50 4C 49
+102   8498 45 44 0D 0A
+102   849C 00
+103   849D
+104   849D 4D 4F 44 45  Text_ModePrefix112:    DEFM "MODE: ",0
+104   84A1 3A 20 00
+105   84A4
+106   84A4              Mode_Name_Pointers:
+107   84A4 AC 84                DW ModeName_Sinclair112
+108   84A6 BD 84                DW ModeName_ATM640112
+109   84A8 D4 84                DW ModeName_ATMEGA112
+110   84AA E7 84                DW ModeName_ATMText112
+111   84AC
+112   84AC 53 49 4E 43  ModeName_Sinclair112:  DEFM "SINCLAIR 256x192",0
+112   84B0 4C 41 49 52
+112   84B4 20 32 35 36
+112   84B8 78 31 39 32
+112   84BC 00
+113   84BD 41 54 4D 20  ModeName_ATM640112:   DEFM "ATM 640x200 MULTICOLOR",0
+113   84C1 36 34 30 78
+113   84C5 32 30 30 20
+113   84C9 4D 55 4C 54
+113   84CD 49 43 4F 4C
+113   84D1 4F 52 00
+114   84D4 41 54 4D 20  ModeName_ATMEGA112:   DEFM "ATM EGA 320x200x16",0
+114   84D8 45 47 41 20
+114   84DC 33 32 30 78
+114   84E0 32 30 30 78
+114   84E4 31 36 00
+115   84E7 41 54 4D 20  ModeName_ATMText112:  DEFM "ATM TEXT 80x25",0
+115   84EB 54 45 58 54
+115   84EF 20 38 30 78
+115   84F3 32 35 00
+116   84F6
+117   84F6              ATM_ColorPairValues112:
+118   84F6 00 B8 47 FF          DB      $00,$B8,$47,$FF
+119   84FA
+120   84FA              ATM_EGA_PlaneBases112:
+121   84FA 00 C0 00 40          DW      $C000,$4000,$E000,$6000
+121   84FE 00 E0 00 60
+122   8502
+123   8502 00 00 00...          ALIGN   256
+124   8600              Font88_112:
+125   8600                      INCBIN  "src/font88.bin"
+126   8900
+127   8900              ProgramEnd112:
+128   8900
+129   8900              ; =========================================================================
+130   8900              ; TR-DOS BASIC loader ( sjasmplus fixed )
+131   8900              ; =========================================================================
+132   8900                      ORG     $B000
+133   B000              CLEAR       EQU $FD
+134   B000              LOAD        EQU $EF
+135   B000              CODE        EQU $AF
+136   B000              REM         EQU $EA
+137   B000              RANDOMIZE   EQU $F9
+138   B000              USR         EQU $C0
+139   B000              OUT_CMD     EQU $DF
+140   B000              VAL         EQU $B0
+141   B000
+142   B000              basic_loader:
+143   B000 00 0A                DB      0,10
+144   B002 20 00                DW      l10_len
+145   B004 DF 32 33 39  l10:    DB      OUT_CMD, "239", $0E, $00, $00, $EF, $00, $00, ",", "1", $0E, $00, $00, $01, $00, $00, ":", CLEAR, "32767", $0E, $00, $00, $7F, $FF, $00, $0D
+145   B008 0E 00 00 EF
+145   B00C 00 00 2C 31
+145   B010 0E 00 00 01
+145   B014 00 00 3A FD
+145   B018 33 32 37 36
+145   B01C 37 0E 00 00
+145   B020 7F FF 00 0D
+146   B024              l10_len EQU     $-l10
+147   B024
+148   B024 00 0B                DB      0,11
+149   B026 A8 00                DW l11_len
+150   B028 DF B0 22 32  l11:    DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "80", 34, ":"
+150   B02C 33 39 22 2C
+150   B030 B0 22 38 30
+150   B034 22 3A
+151   B036 DF B0 22 32          DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "49", 34, ":"
+151   B03A 33 39 22 2C
+151   B03E B0 22 34 39
+151   B042 22 3A
+152   B044 DF B0 22 32          DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "49", 34, ":"
+152   B048 33 39 22 2C
+152   B04C B0 22 34 39
+152   B050 22 3A
+153   B052 DF B0 22 32          DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "50", 34, ":"
+153   B056 33 39 22 2C
+153   B05A B0 22 35 30
+153   B05E 22 3A
+154   B060 DF B0 22 32          DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "32", 34, ":"
+154   B064 33 39 22 2C
+154   B068 B0 22 33 32
+154   B06C 22 3A
+155   B06E DF B0 22 32          DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "83", 34, ":"
+155   B072 33 39 22 2C
+155   B076 B0 22 38 33
+155   B07A 22 3A
+156   B07C DF B0 22 32          DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "84", 34, ":"
+156   B080 33 39 22 2C
+156   B084 B0 22 38 34
+156   B088 22 3A
+157   B08A DF B0 22 32          DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "65", 34, ":"
+157   B08E 33 39 22 2C
+157   B092 B0 22 36 35
+157   B096 22 3A
+158   B098 DF B0 22 32          DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "82", 34, ":"
+158   B09C 33 39 22 2C
+158   B0A0 B0 22 38 32
+158   B0A4 22 3A
+159   B0A6 DF B0 22 32          DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "84", 34, ":"
+159   B0AA 33 39 22 2C
+159   B0AE B0 22 38 34
+159   B0B2 22 3A
+160   B0B4 DF B0 22 32          DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "13", 34, ":"
+160   B0B8 33 39 22 2C
+160   B0BC B0 22 31 33
+160   B0C0 22 3A
+161   B0C2 DF B0 22 32          DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "10", 34, $0D
+161   B0C6 33 39 22 2C
+161   B0CA B0 22 31 30
+161   B0CE 22 0D
+162   B0D0              l11_len EQU     $-l11
+163   B0D0
+164   B0D0 00 14                DB      0,20
+165   B0D2 2A 00                DW      l20_len
+166   B0D4 F9 C0 31 35  l20:    DB      RANDOMIZE, USR, "15619", $0E, $00, $00
+166   B0D8 36 31 39 0E
+166   B0DC 00 00
+167   B0DE 03 3D                DW      15619
+168   B0E0 00 3A EA 3A          DB      0, $3A, REM, $3A, "LOAD ", 34, "proj112", 34, " CODE 32768", $0D
+168   B0E4 4C 4F 41 44
+168   B0E8 20 22 70 72
+168   B0EC 6F 6A 31 31
+168   B0F0 32 22 20 43
+168   B0F4 4F 44 45 20
+168   B0F8 33 32 37 36
+168   B0FC 38 0D
+169   B0FE              l20_len EQU     $-l20
+170   B0FE
+171   B0FE 00 15                DB      0,21
+172   B100 70 00                DW      l21_len
+173   B102 DF B0 22 32  l21:    DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "76", 34, ":"
+173   B106 33 39 22 2C
+173   B10A B0 22 37 36
+173   B10E 22 3A
+174   B110 DF B0 22 32          DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "79", 34, ":"
+174   B114 33 39 22 2C
+174   B118 B0 22 37 39
+174   B11C 22 3A
+175   B11E DF B0 22 32          DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "65", 34, ":"
+175   B122 33 39 22 2C
+175   B126 B0 22 36 35
+175   B12A 22 3A
+176   B12C DF B0 22 32          DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "68", 34, ":"
+176   B130 33 39 22 2C
+176   B134 B0 22 36 38
+176   B138 22 3A
+177   B13A DF B0 22 32          DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "69", 34, ":"
+177   B13E 33 39 22 2C
+177   B142 B0 22 36 39
+177   B146 22 3A
+178   B148 DF B0 22 32          DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "68", 34, ":"
+178   B14C 33 39 22 2C
+178   B150 B0 22 36 38
+178   B154 22 3A
+179   B156 DF B0 22 32          DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "13", 34, ":"
+179   B15A 33 39 22 2C
+179   B15E B0 22 31 33
+179   B162 22 3A
+180   B164 DF B0 22 32          DB      OUT_CMD, VAL, 34, "239", 34, ",", VAL, 34, "10", 34, $0D
+180   B168 33 39 22 2C
+180   B16C B0 22 31 30
+180   B170 22 0D
+181   B172              l21_len EQU     $-l21
+182   B172
+183   B172 00 1E                DB      0,30
+184   B174 1E 00                DW      l30_len
+185   B176 DF 32 33 39  l30:    DB      OUT_CMD, "239", $0E, $00, $00, $EF, $00, $00, ",", "2", $0E, $00, $00, $02, $00, $00, ":", RANDOMIZE, USR, VAL, 34, "32768", 34, $0D
+185   B17A 0E 00 00 EF
+185   B17E 00 00 2C 32
+185   B182 0E 00 00 02
+185   B186 00 00 3A F9
+185   B18A C0 B0 22 33
+185   B18E 32 37 36 38
+185   B192 22 0D
+186   B194              l30_len EQU     $-l30
+187   B194 80                   DB      $80
+188   B195              basic_loader_end:
+189   B195
+190   B195                      SAVETRD "project112.TRD","boot.B",basic_loader,basic_loader_end-basic_loader,10
+191   B195                      SAVETRD "project112.TRD","proj112.C",$8000,ProgramEnd112-$8000
+192   B195
 # file closed: main.asm
